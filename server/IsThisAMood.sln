@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IsThisAMood", "IsThisAMood.csproj", "{343C58CD-AF43-4E4F-9A4E-0E35C7F94107}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{343C58CD-AF43-4E4F-9A4E-0E35C7F94107}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{343C58CD-AF43-4E4F-9A4E-0E35C7F94107}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{343C58CD-AF43-4E4F-9A4E-0E35C7F94107}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{343C58CD-AF43-4E4F-9A4E-0E35C7F94107}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
