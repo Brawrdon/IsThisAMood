@@ -34,10 +34,7 @@ namespace IsThisAMood.Middlewares
         /// <returns></returns>
         public async Task Invoke(HttpContext context)
         {
-            
-            _logger.LogInformation("Inside Middleware");
-            
-            // EnableRewind so the body can be read without causing issues to the request pipeline
+            // EnableBuffering so the body can be read without causing issues to the request pipeline
             context.Request.EnableBuffering();
             
             // Verify SignatureCertChainUrl is present
