@@ -3,9 +3,12 @@ using Alexa.NET;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
 using Alexa.NET.Response;
+using IsThisAMood.Models.Database;
+using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 
 namespace IsThisAMood.Controllers
 {
@@ -15,11 +18,13 @@ namespace IsThisAMood.Controllers
     {
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
+        private readonly ParticipantsService _participantsService;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, ParticipantsService participantsService)
         {
             _logger = logger;
             _configuration = configuration;
+            _participantsService = participantsService;
         }
         
         [HttpPost]
@@ -58,8 +63,8 @@ namespace IsThisAMood.Controllers
             
             switch (intentRequest.Intent.Name)
             {
-                case "HelloIntent":
-                    return HelloIntent();
+                case "CreateEntry":
+                    return CreateEntry(intentRequest);
                 default:
                     return UnknownRequest();
             }
@@ -70,9 +75,22 @@ namespace IsThisAMood.Controllers
             return BuildAskResponse(_configuration["Responses:UnknownRequest"]);
         }
 
-        private SkillResponse HelloIntent()
+        private SkillResponse CreateEntry(IntentRequest createEntryRequest)
         {
-            return BuildAskResponse(_configuration["Responses:HelloIntent"]);
+            if (createEntryRequest.Intent.Slots.Count != 3)
+                return UnknownRequest();
+
+            var slots = createEntryRequest.Intent.Slots;
+            var entry = new Entry
+            {
+                Id = ObjectId.GenerateNewId().ToString(),
+                Mood = slots["mood"].Value, 
+                Rating = int.Parse(slots["rating"].Value), 
+                Activity = slots["activity"].Value
+            };
+            
+            _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
+            return ResponseBuilder.Tell(_configuration["Responses:CreatedEntry"]);
         }
 
         private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
