@@ -77,20 +77,15 @@ namespace IsThisAMood.Controllers
 
         private IActionResult CreateEntry(IntentRequest createEntryRequest)
         {
-            if (createEntryRequest.Intent.Slots.Count != 3)
-                return UnknownRequest();
-
             var slots = createEntryRequest.Intent.Slots;
             var entry = new Entry
             {
                 Id = ObjectId.GenerateNewId().ToString(),
                 Mood = slots["mood"].Value, 
                 Rating = int.Parse(slots["rating"].Value), 
-                Activity = slots["activity"].Value
             };
             
-            _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
-            return Ok(ResponseBuilder.Tell(_configuration["Responses:CreatedEntry"]));
+            return Ok(ResponseBuilder.Tell(_configuration["Responses:ActivitiesRequired"]));
         }
 
         private IActionResult BuildAskResponse(string message, string repromptMessage = null)
