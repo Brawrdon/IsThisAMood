@@ -18,9 +18,9 @@ namespace IsThisAMood.Controllers
     {
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
-        private readonly ParticipantsService _participantsService;
+        private readonly IParticipantsService _participantsService;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, ParticipantsService participantsService)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService)
         {
             _logger = logger;
             _configuration = configuration;
@@ -28,7 +28,7 @@ namespace IsThisAMood.Controllers
         }
         
         [HttpPost]
-        public ActionResult<SkillResponse> ReceiveRequest(SkillRequest skillRequest)
+        public IActionResult ReceiveRequest(SkillRequest skillRequest)
         {
             _logger.LogInformation("Alexa request received");
             _logger.LogDebug("Alexa skill ID: " + skillRequest.Context.System.Application.ApplicationId);
@@ -36,7 +36,7 @@ namespace IsThisAMood.Controllers
             if (!skillRequest.Context.System.Application.ApplicationId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
                 _logger.LogInformation("Alexa skill ID does not match");
-                return new ObjectResult(null) {StatusCode = 403};
+                return Forbid();
             }
 
             LogIntent(skillRequest.Request.Type);
@@ -52,12 +52,12 @@ namespace IsThisAMood.Controllers
             }
         }
 
-        private SkillResponse LaunchRequest()
+        private IActionResult LaunchRequest()
         {
             return BuildAskResponse(_configuration["Responses:LaunchRequest"]);
         }
 
-        private SkillResponse IntentRequest(SkillRequest skillRequest)
+        private IActionResult IntentRequest(SkillRequest skillRequest)
         {
             var intentRequest = skillRequest.Request as IntentRequest;
             
@@ -70,12 +70,12 @@ namespace IsThisAMood.Controllers
             }
         }
 
-        private SkillResponse UnknownRequest()
+        private IActionResult UnknownRequest()
         {
             return BuildAskResponse(_configuration["Responses:UnknownRequest"]);
         }
 
-        private SkillResponse CreateEntry(IntentRequest createEntryRequest)
+        private IActionResult CreateEntry(IntentRequest createEntryRequest)
         {
             if (createEntryRequest.Intent.Slots.Count != 3)
                 return UnknownRequest();
@@ -90,10 +90,10 @@ namespace IsThisAMood.Controllers
             };
             
             _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
-            return ResponseBuilder.Tell(_configuration["Responses:CreatedEntry"]);
+            return Ok(ResponseBuilder.Tell(_configuration["Responses:CreatedEntry"]));
         }
 
-        private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
+        private IActionResult BuildAskResponse(string message, string repromptMessage = null)
         {
             if (repromptMessage == null)
                 repromptMessage = message;
@@ -103,7 +103,7 @@ namespace IsThisAMood.Controllers
             
             var reprompt = new Reprompt { OutputSpeech = repromptSpeech };
 
-            return ResponseBuilder.Ask(speech, reprompt);
+            return Ok(ResponseBuilder.Ask(speech, reprompt));
         }
 
         private void LogIntent(string requestType, SkillRequest skillRequest = null)

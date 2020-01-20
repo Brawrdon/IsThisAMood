@@ -7,7 +7,12 @@ using MongoDB.Driver;
 
 namespace IsThisAMood.Services
 {
-    public class ParticipantsService
+    public interface IParticipantsService
+    {
+        void AddEntry(string id, Entry entry);
+    }
+
+    public class ParticipantsService : IParticipantsService
     {
         private readonly ILogger<ParticipantsService> _logger;
         private readonly IMongoCollection<Participant> _participants;

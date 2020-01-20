@@ -30,7 +30,7 @@ namespace IsThisAMood
             services.AddSingleton<IDatabaseSettings>(sp =>
                 sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
             
-            services.AddSingleton<ParticipantsService>().AddControllers().AddNewtonsoftJson();
+            services.AddSingleton<IParticipantsService, ParticipantsService>().AddControllers().AddNewtonsoftJson();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
