@@ -4,7 +4,6 @@ using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
 using Alexa.NET.Response;
 using IsThisAMood.Controllers;
-using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -17,17 +16,17 @@ namespace IsThisAMoodTests
 {
     public class ControllerFixture : IDisposable
     {
-        public readonly IDictionary<string, EntryActivities> EntryActivitiesStore;
+        public readonly IDictionary<string, Entry> EntryStore;
         
         public ControllerFixture()
         {
-            EntryActivitiesStore = new Dictionary<string, EntryActivities>();
+            EntryStore = new Dictionary<string, Entry>();
 
         }
 
         public void Dispose()
         {
-            EntryActivitiesStore.Clear();
+            EntryStore.Clear();
         }
     }
     
@@ -41,9 +40,11 @@ namespace IsThisAMoodTests
         private static readonly IConfiguration Configuration = CreateConfiguration();
         private static readonly IParticipantsService ParticipantsService = CreateParticipantsService();
 
+        private readonly AlexaController _controller;
         public AlexaControllerTests()
         {
             _fixture = new ControllerFixture();
+            _controller = new AlexaController(Logger, Configuration, ParticipantsService, _fixture.EntryStore);
         }
         
         [Fact]
@@ -51,10 +52,9 @@ namespace IsThisAMoodTests
         {
             // Arrange
             var skillsRequest = CreateSkillsRequest("", "", null);
-            var controller = new AlexaController(Logger, Configuration, ParticipantsService, _fixture.EntryActivitiesStore);
 
             // Act
-            var result = controller.ReceiveRequest(skillsRequest);
+            var result = _controller.ReceiveRequest(skillsRequest);
 
             // Assert
             Assert.IsType<ForbidResult>(result);
@@ -65,10 +65,9 @@ namespace IsThisAMoodTests
         {
             // Arrange
             var skillsRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), "", new LaunchRequest());
-            var controller = new AlexaController(Logger, Configuration, ParticipantsService, _fixture.EntryActivitiesStore);
 
             // Act
-            var result = controller.ReceiveRequest(skillsRequest);
+            var result = _controller.ReceiveRequest(skillsRequest);
 
             // Assert
             var objectResult = Assert.IsType<OkObjectResult>(result);
@@ -76,15 +75,15 @@ namespace IsThisAMoodTests
         }
 
         [Fact]
-        public void IntentRequest_BeingCreateEntry_RequireActivities()
+        public void IntentRequest_CreateEntry()
         {
             // Arrange
             var skillsRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), "", new IntentRequest
             {
-                Type = "IntentRequest",
+                Type = IntentRequest,
                 Intent = new Intent
                 {
-                    Name = "BeginCreateEntry",
+                    Name = "CreateEntry",
                     Slots = new Dictionary<string, Slot>
                     {
                         {"mood", new Slot {Value = "happy"}},
@@ -92,17 +91,16 @@ namespace IsThisAMoodTests
                     }
                 }
             });
-            var controller = new AlexaController(Logger, Configuration, ParticipantsService, _fixture.EntryActivitiesStore);
 
             // Act
-            var result = controller.ReceiveRequest(skillsRequest);
+            var result = _controller.ReceiveRequest(skillsRequest);
 
             // Assert
             var objectResult = Assert.IsType<OkObjectResult>(result);
             var skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
             var plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
 
-            Assert.Equal(1, _fixture.EntryActivitiesStore.Count);
+            Assert.Equal(1, _fixture.EntryStore.Count);
             Assert.Equal(Configuration["Responses:ActivitiesRequired"], plainTextOutputSpeech.Text);
         }
 
@@ -113,7 +111,7 @@ namespace IsThisAMoodTests
             const string sessionId = "session-1";
             var activityIntentRequestOne = new IntentRequest
             {
-                Type = "IntentRequest",
+                Type = IntentRequest,
                 Intent = new Intent
                 {
                     Name = "AddActivity",
@@ -126,7 +124,7 @@ namespace IsThisAMoodTests
             
             var activityIntentRequestTwo = new IntentRequest
             {
-                Type = "IntentRequest",
+                Type = IntentRequest,
                 Intent = new Intent
                 {
                     Name = "AddActivity",
@@ -137,34 +135,92 @@ namespace IsThisAMoodTests
                 }
             };
             
-            _fixture.EntryActivitiesStore.Add(sessionId, new EntryActivities(new Entry()));
-            var controller = new AlexaController(Logger, Configuration, ParticipantsService, _fixture.EntryActivitiesStore);
+            _fixture.EntryStore.Add(sessionId, new Entry { Activities = new List<string>()});
 
             // Act
             var activityRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), sessionId, activityIntentRequestOne);
-            var activityRequestResult = controller.ReceiveRequest(activityRequest);
+            var activityRequestResult = _controller.ReceiveRequest(activityRequest);
             
             // Assert
             var objectResult = Assert.IsType<OkObjectResult>(activityRequestResult);
             var skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
             var plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
             Assert.Equal(Configuration["Responses:ActivitiesRequest"], plainTextOutputSpeech.Text);
-            Assert.Contains(sessionId, _fixture.EntryActivitiesStore);
-            Assert.Contains(activityIntentRequestOne.Intent.Slots["activity"].Value, _fixture.EntryActivitiesStore[sessionId].Activities);
+            Assert.Contains(sessionId, _fixture.EntryStore);
+            Assert.Contains(activityIntentRequestOne.Intent.Slots["activity"].Value, _fixture.EntryStore[sessionId].Activities);
             
             // Act
             activityRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), sessionId, activityIntentRequestTwo);
-            activityRequestResult = controller.ReceiveRequest(activityRequest);
+            activityRequestResult = _controller.ReceiveRequest(activityRequest);
             
             // Assert
             objectResult = Assert.IsType<OkObjectResult>(activityRequestResult);
             skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
             plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
             Assert.Equal(Configuration["Responses:ActivitiesRequest"], plainTextOutputSpeech.Text);
-            Assert.Contains(sessionId, _fixture.EntryActivitiesStore);
-            Assert.Contains(activityIntentRequestTwo.Intent.Slots["activity"].Value, _fixture.EntryActivitiesStore[sessionId].Activities);
+            Assert.Contains(sessionId, _fixture.EntryStore);
+            Assert.Contains(activityIntentRequestTwo.Intent.Slots["activity"].Value, _fixture.EntryStore[sessionId].Activities);
             
-            Assert.Equal(2, _fixture.EntryActivitiesStore[sessionId].Activities.Count);
+            Assert.Equal(2, _fixture.EntryStore[sessionId].Activities.Count);
+        }
+
+        [Fact]
+        public void IntentRequest_AddTitle()
+        {
+            // Arrange
+            const string sessionId = "session-1";
+            _fixture.EntryStore.Add(sessionId, new Entry{ Activities = new List<string>() });
+
+            var skillsRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), sessionId, new IntentRequest
+            {
+                Type = IntentRequest,
+                Intent = new Intent
+                {
+                    Name = "AddTitle",
+                    Slots = new Dictionary<string, Slot>
+                    {
+                        {"title", new Slot {Value = "My Day"}}
+                    }
+                }
+            });
+            
+            // Act
+            var result = _controller.ReceiveRequest(skillsRequest);
+            
+            // Assert
+            var objectResult = Assert.IsType<OkObjectResult>(result);
+            var skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
+            var plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
+            Assert.Equal(Configuration["Responses:CreatedEntry"], plainTextOutputSpeech.Text);
+        }
+        
+        [Fact]
+        public void IntentRequest_AddTitle_SessionNotFound()
+        {
+            // Arrange
+            const string sessionId = "session-1";
+
+            var skillsRequest = CreateSkillsRequest(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID"), sessionId, new IntentRequest
+            {
+                Type = IntentRequest,
+                Intent = new Intent
+                {
+                    Name = "AddTitle",
+                    Slots = new Dictionary<string, Slot>
+                    {
+                        {"title", new Slot {Value = "My Day"}}
+                    }
+                }
+            });
+            
+            // Act
+            var result = _controller.ReceiveRequest(skillsRequest);
+            
+            // Assert
+            var objectResult = Assert.IsType<OkObjectResult>(result);
+            var skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
+            var plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
+            Assert.Equal(Configuration["Responses:UnknownRequest"], plainTextOutputSpeech.Text);
         }
 
         private static IConfiguration CreateConfiguration()

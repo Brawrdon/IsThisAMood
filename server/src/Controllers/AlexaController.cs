@@ -4,7 +4,6 @@ using Alexa.NET;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
 using Alexa.NET.Response;
-using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -21,14 +20,14 @@ namespace IsThisAMood.Controllers
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
-        private readonly IDictionary<string, EntryActivities> _entryActivityStore;
+        private readonly IDictionary<string, Entry> _entryStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, EntryActivities> entryActivityStore)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, Entry> entryStore)
         {
             _logger = logger;
             _configuration = configuration;
             _participantsService = participantsService;
-            _entryActivityStore = entryActivityStore;
+            _entryStore = entryStore;
         }
         
         [HttpPost]
@@ -58,61 +57,80 @@ namespace IsThisAMood.Controllers
 
         private IActionResult LaunchRequest()
         {
-            return BuildAskResponse(_configuration["Responses:LaunchRequest"]);
+            return Ok(BuildAskResponse(_configuration["Responses:LaunchRequest"]));
         }
 
+        
         private IActionResult IntentRequest(SkillRequest skillRequest)
         {
             var intentRequest = skillRequest.Request as IntentRequest;
             
             switch (intentRequest.Intent.Name)
             {
-                case "BeginCreateEntry":
-                    return BeginCreateEntry(skillRequest.Session.SessionId, intentRequest);
+                case "CreateEntry":
+                    return CreateEntry(skillRequest.Session.SessionId, intentRequest);
                 case "AddActivity":
-                    return AddActivity(skillRequest.Session.SessionId, intentRequest);
+                    return AddActivity(skillRequest.Session, intentRequest);
+                case "AddTitle":
+                    return AddTitle(skillRequest.Session.SessionId, intentRequest);
                 default:
                     return UnknownRequest();
             }
         }
-
-
-
+        
         private IActionResult UnknownRequest()
         {
-            return BuildAskResponse(_configuration["Responses:UnknownRequest"]);
+            return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
         }
 
-        private IActionResult BeginCreateEntry(string sessionId, IntentRequest createEntryRequest)
+        private IActionResult CreateEntry(string sessionId, IntentRequest createEntryRequest)
         {
             var slots = createEntryRequest.Intent.Slots;
             var entry = new Entry
             {
                 Id = ObjectId.GenerateNewId().ToString(),
                 Mood = slots["mood"].Value, 
-                Rating = int.Parse(slots["rating"].Value), 
+                Rating = int.Parse(slots["rating"].Value),
+                Activities = new List<string>()
             };
             
-            _entryActivityStore.Add(sessionId, new EntryActivities(entry));
+            _entryStore.Add(sessionId, entry);
             
-            // ToDo: Check that the session is kept open so that activities can be added.
-            return Ok(ResponseBuilder.Tell(_configuration["Responses:ActivitiesRequired"]));
+            return Ok(BuildAskResponse(_configuration["Responses:ActivitiesRequired"]));
         }
-        
-        // ToDo: Implement a complete create entry method
-        private IActionResult AddActivity(string sessionId, IntentRequest intentRequest)
+
+        private IActionResult AddActivity(Session session, IntentRequest intentRequest)
         {
             // Check the session is currently active
-            if (_entryActivityStore.TryGetValue(sessionId, out var entryActivity) == false)
+            if (_entryStore.TryGetValue(session.SessionId, out var entry) == false)
+                return UnknownRequest();
+
+            var activity = intentRequest.Intent.Slots["activity"].Value;
+
+            if (activity.Equals("no"))
+                return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddTitle"}));
+                    
+            entry.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
+
+            return Ok(BuildAskResponse(_configuration["Responses:ActivitiesRequest"]));
+        }
+        
+        private IActionResult AddTitle(string sessionId, IntentRequest intentRequest)
+        {
+            // Check the session is currently active
+            if (_entryStore.TryGetValue(sessionId, out var entry) == false)
                 return UnknownRequest();
             
-            entryActivity.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
+            entry.Title = intentRequest.Intent.Slots["title"].Value;
+            
+            // Complete entry
+            // ToDo: Create proper participant IDs
+            _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
 
-            return BuildAskResponse(_configuration["Responses:ActivitiesRequest"]);
-
+            return Ok(BuildAskResponse(_configuration["Responses:CreatedEntry"]));
         }
 
-        private IActionResult BuildAskResponse(string message, string repromptMessage = null)
+        private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
         {
             if (repromptMessage == null)
                 repromptMessage = message;
@@ -122,7 +140,7 @@ namespace IsThisAMood.Controllers
             
             var reprompt = new Reprompt { OutputSpeech = repromptSpeech };
 
-            return Ok(ResponseBuilder.Ask(speech, reprompt));
+            return ResponseBuilder.Ask(speech, reprompt);
         }
 
         private void LogIntent(string requestType, SkillRequest skillRequest = null)

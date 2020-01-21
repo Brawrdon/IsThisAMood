@@ -9,7 +9,7 @@ namespace IsThisAMood.Services
 {
     public interface IParticipantsService
     {
-        void AddEntry(string id, Entry entry);
+        void AddEntry(string participantId, Entry entry);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -26,14 +26,15 @@ namespace IsThisAMood.Services
             _participants = database.GetCollection<Participant>(settings.CollectionName);
         }
 
-        public void AddEntry(string id, Entry entry)
+        public void AddEntry(string participantId, Entry entry)
         {
             var builder = Builders<Participant>.Update; 
             var update = builder.Push("Entries", entry);
 
-            var result = _participants.UpdateOne(participant => participant.Id.Equals(id), update);
+            var result = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
 
             _logger.LogInformation(result.ToJson());
         }
+        
     }
 }

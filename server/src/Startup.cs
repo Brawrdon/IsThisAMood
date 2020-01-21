@@ -33,7 +33,7 @@ namespace IsThisAMood
                 sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
 
             services.AddSingleton<IParticipantsService, ParticipantsService>();
-            services.AddSingleton<IDictionary<string, EntryActivities>, Dictionary<string, EntryActivities>>();
+            services.AddSingleton<IDictionary<string, Entry>, Dictionary<string, Entry>>();
             
             services.AddControllers().AddNewtonsoftJson();
         }
