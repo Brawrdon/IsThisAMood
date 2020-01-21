@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using Alexa.NET;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
 using Alexa.NET.Response;
+using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -19,12 +21,14 @@ namespace IsThisAMood.Controllers
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
+        private readonly IDictionary<string, EntryActivities> _entryActivityStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, EntryActivities> entryActivityStore)
         {
             _logger = logger;
             _configuration = configuration;
             _participantsService = participantsService;
+            _entryActivityStore = entryActivityStore;
         }
         
         [HttpPost]
@@ -63,19 +67,23 @@ namespace IsThisAMood.Controllers
             
             switch (intentRequest.Intent.Name)
             {
-                case "CreateEntry":
-                    return CreateEntry(intentRequest);
+                case "BeginCreateEntry":
+                    return BeginCreateEntry(skillRequest.Session.SessionId, intentRequest);
+                case "AddActivity":
+                    return AddActivity(skillRequest.Session.SessionId, intentRequest);
                 default:
                     return UnknownRequest();
             }
         }
+
+
 
         private IActionResult UnknownRequest()
         {
             return BuildAskResponse(_configuration["Responses:UnknownRequest"]);
         }
 
-        private IActionResult CreateEntry(IntentRequest createEntryRequest)
+        private IActionResult BeginCreateEntry(string sessionId, IntentRequest createEntryRequest)
         {
             var slots = createEntryRequest.Intent.Slots;
             var entry = new Entry
@@ -85,7 +93,23 @@ namespace IsThisAMood.Controllers
                 Rating = int.Parse(slots["rating"].Value), 
             };
             
+            _entryActivityStore.Add(sessionId, new EntryActivities(entry));
+            
+            // ToDo: Check that the session is kept open so that activities can be added.
             return Ok(ResponseBuilder.Tell(_configuration["Responses:ActivitiesRequired"]));
+        }
+        
+        // ToDo: Implement a complete create entry method
+        private IActionResult AddActivity(string sessionId, IntentRequest intentRequest)
+        {
+            // Check the session is currently active
+            if (_entryActivityStore.TryGetValue(sessionId, out var entryActivity) == false)
+                return UnknownRequest();
+            
+            entryActivity.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
+
+            return BuildAskResponse(_configuration["Responses:ActivitiesRequest"]);
+
         }
 
         private IActionResult BuildAskResponse(string message, string repromptMessage = null)

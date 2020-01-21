@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using IsThisAMood.Middlewares;
+using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Builder;
@@ -29,8 +31,11 @@ namespace IsThisAMood
 
             services.AddSingleton<IDatabaseSettings>(sp =>
                 sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
+
+            services.AddSingleton<IParticipantsService, ParticipantsService>();
+            services.AddSingleton<IDictionary<string, EntryActivities>, Dictionary<string, EntryActivities>>();
             
-            services.AddSingleton<IParticipantsService, ParticipantsService>().AddControllers().AddNewtonsoftJson();
+            services.AddControllers().AddNewtonsoftJson();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
