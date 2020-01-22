@@ -16,6 +16,5 @@ namespace IsThisAMood.Models.Database
 
         public List<string> Activities { get; set; }
         
-        public string Title { get; set; }
     }
 }

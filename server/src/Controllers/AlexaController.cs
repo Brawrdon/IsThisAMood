@@ -20,9 +20,9 @@ namespace IsThisAMood.Controllers
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
-        private readonly IDictionary<string, Entry> _createEntryStore;
+        private readonly CreateEntryStore _createEntryStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, Entry> createEntryStore)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, CreateEntryStore createEntryStore)
         {
             _logger = logger;
             _configuration = configuration;
@@ -39,7 +39,7 @@ namespace IsThisAMood.Controllers
             if (!skillRequest.Context.System.Application.ApplicationId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
                 _logger.LogInformation("Alexa skill ID does not match");
-                return Forbid();
+                return Unauthorized();
             }
 
             LogIntent(skillRequest.Request.Type);
@@ -83,7 +83,7 @@ namespace IsThisAMood.Controllers
         private IActionResult YesIntent(Session session)
         {
             // Check that a session is currently in the createEntryStore
-            if (_createEntryStore.TryGetValue(session.SessionId, out var entry))
+            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
             {
                 return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
             }
@@ -94,7 +94,7 @@ namespace IsThisAMood.Controllers
         private IActionResult NoIntent(Session session)
         {
             // Check that a session is currently in the createEntryStore
-            if (_createEntryStore.TryGetValue(session.SessionId, out var entry))
+            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
             {   
                 // ToDo: Create proper participant IDs
                 _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
@@ -119,7 +119,7 @@ namespace IsThisAMood.Controllers
                 Activities = new List<string>()
             };
             
-            _createEntryStore.Add(sessionId, entry);
+            _createEntryStore.Entries.Add(sessionId, entry);
             
             return Ok(BuildAskResponse(_configuration["Responses:FirstActivityRequest"]));
         }
@@ -127,7 +127,7 @@ namespace IsThisAMood.Controllers
         private IActionResult AddActivity(Session session, IntentRequest intentRequest)
         {
             // Check the session is currently active
-            if (_createEntryStore.TryGetValue(session.SessionId, out var entry) == false)
+            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry) == false)
                 return UnknownRequest();
             
             entry.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
