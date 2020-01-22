@@ -20,14 +20,14 @@ namespace IsThisAMood.Controllers
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
-        private readonly IDictionary<string, Entry> _entryStore;
+        private readonly IDictionary<string, Entry> _createEntryStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, Entry> entryStore)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IDictionary<string, Entry> createEntryStore)
         {
             _logger = logger;
             _configuration = configuration;
             _participantsService = participantsService;
-            _entryStore = entryStore;
+            _createEntryStore = createEntryStore;
         }
         
         [HttpPost]
@@ -71,13 +71,38 @@ namespace IsThisAMood.Controllers
                     return CreateEntry(skillRequest.Session.SessionId, intentRequest);
                 case "AddActivity":
                     return AddActivity(skillRequest.Session, intentRequest);
-                case "AddTitle":
-                    return AddTitle(skillRequest.Session.SessionId, intentRequest);
+                case "AMAZON.YesIntent":
+                    return YesIntent(skillRequest.Session);
+                case "AMAZON.NoIntent":
+                    return NoIntent(skillRequest.Session);
                 default:
                     return UnknownRequest();
             }
         }
-        
+
+        private IActionResult YesIntent(Session session)
+        {
+            // Check that a session is currently in the createEntryStore
+            if (_createEntryStore.TryGetValue(session.SessionId, out var entry))
+            {
+                return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
+            }
+            
+            return UnknownRequest();
+        }
+
+        private IActionResult NoIntent(Session session)
+        {
+            // Check that a session is currently in the createEntryStore
+            if (_createEntryStore.TryGetValue(session.SessionId, out var entry))
+            {   
+                // ToDo: Create proper participant IDs
+                _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
+                return Ok(ResponseBuilder.Tell(_configuration["Responses:EntryAdded"]));
+            }
+            
+            return UnknownRequest();
+        }
         private IActionResult UnknownRequest()
         {
             return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
@@ -94,40 +119,20 @@ namespace IsThisAMood.Controllers
                 Activities = new List<string>()
             };
             
-            _entryStore.Add(sessionId, entry);
+            _createEntryStore.Add(sessionId, entry);
             
-            return Ok(BuildAskResponse(_configuration["Responses:ActivitiesRequired"]));
+            return Ok(BuildAskResponse(_configuration["Responses:FirstActivityRequest"]));
         }
 
         private IActionResult AddActivity(Session session, IntentRequest intentRequest)
         {
             // Check the session is currently active
-            if (_entryStore.TryGetValue(session.SessionId, out var entry) == false)
+            if (_createEntryStore.TryGetValue(session.SessionId, out var entry) == false)
                 return UnknownRequest();
-
-            var activity = intentRequest.Intent.Slots["activity"].Value;
-
-            if (activity.Equals("no"))
-                return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddTitle"}));
-                    
+            
             entry.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
 
-            return Ok(BuildAskResponse(_configuration["Responses:ActivitiesRequest"]));
-        }
-        
-        private IActionResult AddTitle(string sessionId, IntentRequest intentRequest)
-        {
-            // Check the session is currently active
-            if (_entryStore.TryGetValue(sessionId, out var entry) == false)
-                return UnknownRequest();
-            
-            entry.Title = intentRequest.Intent.Slots["title"].Value;
-            
-            // Complete entry
-            // ToDo: Create proper participant IDs
-            _participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry);
-
-            return Ok(BuildAskResponse(_configuration["Responses:CreatedEntry"]));
+            return Ok(BuildAskResponse(_configuration["Responses:ActivityRequest"]));
         }
 
         private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
