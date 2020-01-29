@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Alexa.NET;
 using Alexa.NET.Request;
@@ -21,6 +21,7 @@ namespace IsThisAMood.Controllers
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
         private readonly CreateEntryStore _createEntryStore;
+        private readonly SessionStore _sessionStore;
 
         public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, CreateEntryStore createEntryStore)
         {
@@ -33,16 +34,12 @@ namespace IsThisAMood.Controllers
         [HttpPost]
         public IActionResult ReceiveRequest(SkillRequest skillRequest)
         {
-            _logger.LogInformation("Alexa request received");
-            _logger.LogDebug("Alexa skill ID: " + skillRequest.Context.System.Application.ApplicationId);
-
-            if (!skillRequest.Context.System.Application.ApplicationId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
+            string skillID = skillRequest.Context.System.Application.ApplicationId;
+            if (!skillID.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
-                _logger.LogInformation("Alexa skill ID does not match");
+                _logger.LogWarning("Incorrect skill ID : {SkillID}", skillID);
                 return Unauthorized();
             }
-
-            LogIntent(skillRequest.Request.Type);
             
             switch (skillRequest.Request.Type)
             {
@@ -57,6 +54,7 @@ namespace IsThisAMood.Controllers
 
         private IActionResult LaunchRequest()
         {
+            _logger.LogInformation("Launch request recieved.");
             return Ok(BuildAskResponse(_configuration["Responses:LaunchRequest"]));
         }
 
@@ -64,7 +62,9 @@ namespace IsThisAMood.Controllers
         private IActionResult IntentRequest(SkillRequest skillRequest)
         {
             var intentRequest = skillRequest.Request as IntentRequest;
-            
+
+            _logger.LogDebug("{Intent}", intentRequest.Intent.Name);
+
             switch (intentRequest.Intent.Name)
             {
                 case "CreateEntry":
@@ -80,7 +80,7 @@ namespace IsThisAMood.Controllers
             }
         }
 
-        private IActionResult YesIntent(Session session)
+        private IActionResult YesIntent(Alexa.NET.Request.Session session)
         {
             // Check that a session is currently in the createEntryStore
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
@@ -91,7 +91,7 @@ namespace IsThisAMood.Controllers
             return UnknownRequest();
         }
 
-        private IActionResult NoIntent(Session session)
+        private IActionResult NoIntent(Alexa.NET.Request.Session session)
         {
             // Check that a session is currently in the createEntryStore
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
@@ -124,7 +124,7 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(_configuration["Responses:FirstActivityRequest"]));
         }
 
-        private IActionResult AddActivity(Session session, IntentRequest intentRequest)
+        private IActionResult AddActivity(Alexa.NET.Request.Session session, IntentRequest intentRequest)
         {
             // Check the session is currently active
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry) == false)
@@ -146,19 +146,6 @@ namespace IsThisAMood.Controllers
             var reprompt = new Reprompt { OutputSpeech = repromptSpeech };
 
             return ResponseBuilder.Ask(speech, reprompt);
-        }
-
-        private void LogIntent(string requestType, SkillRequest skillRequest = null)
-        {
-            if (skillRequest != null)
-                LogSkillRequest(skillRequest);
-            
-            _logger.LogInformation("Intent reached: " + requestType);
-        }
-
-        private void LogSkillRequest(SkillRequest skillRequest)
-        { 
-            _logger.LogDebug("Skill request: " + skillRequest);
         }
     }
 }
