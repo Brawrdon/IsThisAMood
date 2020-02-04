@@ -9,7 +9,7 @@ namespace IsThisAMood.Services
 {
     public interface IParticipantsService
     {
-        void AddEntry(string participantId, Entry entry);
+        bool AddEntry(string participantId, Entry entry);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -26,14 +26,24 @@ namespace IsThisAMood.Services
             _participants = database.GetCollection<Participant>(settings.CollectionName);
         }
 
-        public void AddEntry(string participantId, Entry entry)
+        public bool AddEntry(string participantId, Entry entry)
         {
             var builder = Builders<Participant>.Update; 
             var update = builder.Push("Entries", entry);
 
-            var result = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
+            var updateResult = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
 
-            _logger.LogInformation(result.ToJson());
+            if(!updateResult.IsAcknowledged) {
+                _logger.LogError("Attempting to insert entry {EntryID} was not acknowledged", entry.Id);
+                return false;
+            }
+                
+            if(updateResult.ModifiedCount != 1) {
+                _logger.LogError("Modified count when attempting to insert entry {EntryID} was {ModifiedCount} ", entry.Id, updateResult.ModifiedCount);
+                return false;    
+            }
+            
+            return true;
         }
         
     }
