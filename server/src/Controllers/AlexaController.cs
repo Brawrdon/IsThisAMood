@@ -57,7 +57,6 @@ namespace IsThisAMood.Controllers
         private IActionResult LaunchRequest()
         {
             var responseText = _configuration["Responses:LaunchRequest"];
-            LogSkillResponse(responseText);
             return Ok(BuildAskResponse(responseText));
         }
 
@@ -92,7 +91,7 @@ namespace IsThisAMood.Controllers
                 return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
             }
 
-            LogSessionNotInStore("YesIntent"); 
+            LogSessionNotInStore(session.SessionId, "YesIntent"); 
             return UnknownRequest();
         }
 
@@ -105,16 +104,14 @@ namespace IsThisAMood.Controllers
                 // ToDo: Create proper participant IDs
                 if (!_participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry)) {
                     responseText = _configuration["Responses:EntryAddFailure"];
-                    LogSkillResponse(responseText);
                     return Ok(ResponseBuilder.Tell(responseText));
                 }
 
                 responseText = _configuration["Responses:EntryAdded"];
-                LogSkillResponse(responseText);
                 return Ok(ResponseBuilder.Tell(responseText));
             }
             
-            LogSessionNotInStore("NoIntent");
+            LogSessionNotInStore(session.SessionId, "NoIntent");
             return UnknownRequest();
         }
         private IActionResult UnknownRequest()
@@ -133,9 +130,14 @@ namespace IsThisAMood.Controllers
                 Activities = new List<string>()
             };
             
-            _createEntryStore.Entries.Add(sessionId, entry);
+            if(!_createEntryStore.Entries.TryAdd(sessionId, entry)) {
+                _logger.LogWarning("Unable to add session {SessionID} to create");
+                return Ok(BuildTellResponse(_configuration["Responses:EntryAddFailure"]));
+            }
             
-            return Ok(BuildAskResponse(_configuration["Responses:FirstActivityRequest"]));
+            var responseText = _configuration["Responses:FirstActivityRequest"];
+            
+            return Ok(BuildAskResponse(responseText));
         }
 
         private IActionResult AddActivity(Alexa.NET.Request.Session session, IntentRequest intentRequest)
@@ -149,6 +151,14 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(_configuration["Responses:ActivityRequest"]));
         }
 
+        private SkillResponse BuildTellResponse(string message)
+        {  
+            var speech = new PlainTextOutputSpeech(message);
+            var skillResponse = ResponseBuilder.Tell(speech);
+
+            LogSkillResponse(skillResponse);
+            return skillResponse;
+        }
         private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
         {
             if (repromptMessage == null)
@@ -162,12 +172,12 @@ namespace IsThisAMood.Controllers
             return ResponseBuilder.Ask(speech, reprompt);
         }
 
-        private void LogSkillResponse(string responseText) {
-            _logger.LogDebug("Skill response text : {SkillResponseText}", responseText);
+        private void LogSkillResponse(SkillResponse skillResponse) {
+            _logger.LogDebug("Skill response : {@SkillResponse}", skillResponse);
         }
         
-        private void LogSessionNotInStore(string intent) {
-            _logger.LogDebug("Session not found in createEntryStore : {Intent}", intent);
+        private void LogSessionNotInStore(string sessionId, string intent) {
+            _logger.LogDebug("Session {SessionID} not found in createEntryStore : {Intent}", sessionId, intent);
         }
     }
 }
