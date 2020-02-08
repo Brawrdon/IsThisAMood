@@ -87,7 +87,7 @@ namespace IsThisAMood.Controllers
             // Check that a session is currently in the createEntryStore
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out _))
             {
-                _logger.LogDebug("Delegating dialogue to {DelegatedActivity");
+                _logger.LogDebug("Delegating dialogue to {DelegatedActivity}");
                 return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
             }
 

@@ -39,9 +39,11 @@ namespace IsThisAMood.Services
             }
                 
             if(updateResult.ModifiedCount != 1) {
-                _logger.LogError("Modified count when attempting to insert entry {EntryID} was {ModifiedCount} ", entry.Id, updateResult.ModifiedCount);
+                _logger.LogError("Modified count when attempting to insert entry {EntryID} was {ModifiedCount}", entry.Id, updateResult.ModifiedCount);
                 return false;    
             }
+            
+            _logger.LogDebug("Entry {EntryID} was added", entry.Id);
             
             return true;
         }
