@@ -99,7 +99,7 @@ namespace IsThisAMoodTests
             var skillsResponse = Assert.IsType<SkillResponse>(objectResult.Value);
             var plainTextOutputSpeech = Assert.IsType<PlainTextOutputSpeech>(skillsResponse.Response.OutputSpeech);
 
-            Assert.Equal(1, _fixture.CreateEntryStore.Entries.Count);
+            Assert.Single(_fixture.CreateEntryStore.Entries);
             Assert.Equal(Configuration["Responses:FirstActivityRequest"], plainTextOutputSpeech.Text);
         }
 
@@ -183,7 +183,7 @@ namespace IsThisAMoodTests
         {
             var skillsRequest = new SkillRequest
             {
-                Session = new Session
+                Session = new Session()
                 {
                     SessionId = sessionId
                 },

@@ -21,7 +21,7 @@ namespace IsThisAMood.Controllers
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
         private readonly CreateEntryStore _createEntryStore;
-        private readonly SessionStore _sessionStore;
+        private readonly AlexaSessionStore _alexaSessionStore;
 
         public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, CreateEntryStore createEntryStore)
         {
@@ -34,10 +34,10 @@ namespace IsThisAMood.Controllers
         [HttpPost]
         public IActionResult ReceiveRequest(SkillRequest skillRequest)
         {
-            string skillID = skillRequest.Context.System.Application.ApplicationId;
-            if (!skillID.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
+            string skillId = skillRequest.Context.System.Application.ApplicationId;
+            if (!skillId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
-                _logger.LogWarning("Incorrect skill ID : {SkillID}", skillID);
+                _logger.LogWarning("Incorrect skill ID : {SkillID}", skillId);
                 return Unauthorized();
             }
             
@@ -64,9 +64,9 @@ namespace IsThisAMood.Controllers
         {
             var intentRequest = skillRequest.Request as IntentRequest;
 
-            _logger.LogDebug("Intent launched : {Intent}", intentRequest.Intent.Name);
+            _logger.LogDebug("Intent launched : {Intent}", intentRequest?.Intent.Name);
 
-            switch (intentRequest.Intent.Name)
+            switch (intentRequest?.Intent.Name)
             {
                 case "CreateEntry":
                     return CreateEntry(skillRequest.Session.SessionId, intentRequest);
@@ -77,15 +77,15 @@ namespace IsThisAMood.Controllers
                 case "AMAZON.NoIntent":
                     return NoIntent(skillRequest.Session);
                 default:
-                    _logger.LogError("{Intent} is not a registered intent", intentRequest.Intent.Name);
+                    _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
                     return UnknownRequest();
             }
         }
 
-        private IActionResult YesIntent(Alexa.NET.Request.Session session)
+        private IActionResult YesIntent(Session session)
         {
             // Check that a session is currently in the createEntryStore
-            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
+            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out _))
             {
                 _logger.LogDebug("Delegating dialogue to {DelegatedActivity");
                 return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
@@ -95,7 +95,7 @@ namespace IsThisAMood.Controllers
             return UnknownRequest();
         }
 
-        private IActionResult NoIntent(Alexa.NET.Request.Session session)
+        private IActionResult NoIntent(Session session)
         {
             // Check that a session is currently in the createEntryStore
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
@@ -131,7 +131,7 @@ namespace IsThisAMood.Controllers
             };
             
             if(!_createEntryStore.Entries.TryAdd(sessionId, entry)) {
-                _logger.LogWarning("Unable to add session {SessionID} to create");
+                _logger.LogWarning("Unable to add session {SessionID} to createEntryStore");
                 return Ok(BuildTellResponse(_configuration["Responses:EntryAddFailure"]));
             }
             
@@ -140,7 +140,7 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(responseText));
         }
 
-        private IActionResult AddActivity(Alexa.NET.Request.Session session, IntentRequest intentRequest)
+        private IActionResult AddActivity(Session session, IntentRequest intentRequest)
         {
             // Check the session is currently active
             if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry) == false)
@@ -155,7 +155,6 @@ namespace IsThisAMood.Controllers
         {  
             var speech = new PlainTextOutputSpeech(message);
             var skillResponse = ResponseBuilder.Tell(speech);
-
             LogSkillResponse(skillResponse);
             return skillResponse;
         }
@@ -166,10 +165,11 @@ namespace IsThisAMood.Controllers
             
             var speech = new PlainTextOutputSpeech(message);
             var repromptSpeech = new PlainTextOutputSpeech(repromptMessage);
-            
             var reprompt = new Reprompt { OutputSpeech = repromptSpeech };
 
-            return ResponseBuilder.Ask(speech, reprompt);
+            var skillResponse = ResponseBuilder.Ask(speech, reprompt);
+            LogSkillResponse(skillResponse);
+            return skillResponse;
         }
 
         private void LogSkillResponse(SkillResponse skillResponse) {
