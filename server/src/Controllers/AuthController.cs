@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using IdentityModel.Client;
+using IsThisAMood.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ namespace IsThisAMood.Controllers
 
         private readonly SignInManager<IdentityUser> _signInManager;
 
-        public AuthController(SignInManager<IdentityUser> signInManager, IHttpClientFactory httpClientFactory)
+        public AuthController(SignInManager<IdentityUser> signInManager)
         {
             _signInManager = signInManager;
         }
@@ -43,9 +44,6 @@ namespace IsThisAMood.Controllers
             var result = await _signInManager.PasswordSignInAsync(viewModel.Username, viewModel.Password, false, false);
             if (result.Succeeded)
             {
-                
-                HttpContext.User.AddIdentity(new ClaimsIdentity(new List<Claim> {new Claim(ClaimTypes.Email, viewModel.Username)}));
-
                 // Get Auth token
                 var requestUrl = new RequestUrl("http://localhost:6000/connect/authorize");
                 var url = requestUrl.CreateAuthorizeUrl(

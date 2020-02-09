@@ -37,14 +37,15 @@ namespace IsThisAMood
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<IdentityDbContext>(builder => { builder.UseInMemoryDatabase("IsThisAMood"); } );
+            services.AddDbContext<IdentityDbContext<IdentityUser>>(builder => { builder.UseInMemoryDatabase("IsThisAMood"); } );
             services.AddIdentity<IdentityUser, IdentityRole>(options =>
                 {
                     options.Password.RequireNonAlphanumeric = false;
                     options.Password.RequireDigit = false;
                     options.Password.RequireUppercase = false;
                 })
-                .AddEntityFrameworkStores<IdentityDbContext>();
+                .AddDefaultTokenProviders()
+                .AddEntityFrameworkStores<IdentityDbContext<IdentityUser>>();
 
             services.ConfigureApplicationCookie(options =>
             {
@@ -53,10 +54,11 @@ namespace IsThisAMood
             });
 
             services.AddIdentityServer()
-                .AddAspNetIdentity<IdentityUser>()
                 .AddDeveloperSigningCredential()
                 .AddInMemoryIdentityResources(GetIdentityResources())
-                .AddInMemoryClients(GetClients());
+                .AddInMemoryClients(GetClients())
+                .AddAspNetIdentity<IdentityUser>()
+                .AddProfileService<ProfileService>();
 
             services.AddAuthentication(options =>
                 {
@@ -83,6 +85,7 @@ namespace IsThisAMood
 
             services.AddSingleton<IParticipantsService, ParticipantsService>();
             services.AddSingleton<CreateEntryStore>();
+            services.AddTransient<IProfileService, ProfileService>();
             services.AddMvc().AddNewtonsoftJson();
         }
 

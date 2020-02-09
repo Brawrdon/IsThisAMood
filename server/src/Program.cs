@@ -1,5 +1,6 @@
 using System;
 using System.Security.Claims;
+using IsThisAMood.Models;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -41,7 +42,7 @@ namespace IsThisAMood
 
                     foreach (var participant in participants)
                     {
-                        userManager.CreateAsync(new IdentityUser(participant.Username), participant.Password).GetAwaiter();
+                        userManager.CreateAsync(new IdentityUser {UserName = participant.Username}, participant.Password).GetAwaiter();
                     }
 
                 }
