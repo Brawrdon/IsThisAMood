@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using IdentityServer4.Models;
+using IdentityServer4.Services;
 using IdentityServer4.Stores;
+using IdentityServer4.Validation;
 using IsThisAMood.Middlewares;
 using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
@@ -35,8 +37,23 @@ namespace IsThisAMood
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            
+            services.AddDbContext<IdentityDbContext>(builder => { builder.UseInMemoryDatabase("IsThisAMood"); } );
+            services.AddIdentity<IdentityUser, IdentityRole>(options =>
+                {
+                    options.Password.RequireNonAlphanumeric = false;
+                    options.Password.RequireDigit = false;
+                    options.Password.RequireUppercase = false;
+                })
+                .AddEntityFrameworkStores<IdentityDbContext>();
+
+            services.ConfigureApplicationCookie(options =>
+            {
+                options.LoginPath = "/auth";
+                options.Cookie.Name = "IsThisAMood";
+            });
+
             services.AddIdentityServer()
+                .AddAspNetIdentity<IdentityUser>()
                 .AddDeveloperSigningCredential()
                 .AddInMemoryIdentityResources(GetIdentityResources())
                 .AddInMemoryClients(GetClients());
@@ -45,9 +62,9 @@ namespace IsThisAMood
                 {
                     options.DefaultScheme = "IsThisAMood";
                     options.DefaultChallengeScheme = "oidc";
-                    
+
                 })
-                .AddCookie("IsThisAMood")
+                .AddCookie("Cookie")
                 .AddOpenIdConnect("oidc", options =>
                 {
                     options.ClientId = Environment.GetEnvironmentVariable("ALEXA_CLIENT_ID");
@@ -56,9 +73,7 @@ namespace IsThisAMood
                     options.Authority = "http://localhost:6000/";
                     options.ResponseType = "code";
                     options.RequireHttpsMetadata = false;
-    
                 });
-
 
             services.Configure<DatabaseSettings>(
                 Configuration.GetSection(nameof(DatabaseSettings)));

@@ -8,6 +8,7 @@ namespace IsThisAMood.Services
     public interface IParticipantsService
     {
         List<Participant> GetParticipants();
+        Participant GetParticipant(string username);
         bool AddEntry(string participantId, Entry entry);
     }
 
@@ -29,6 +30,12 @@ namespace IsThisAMood.Services
         {
             return _participants.Find(participant => true).ToList();
         }
+
+        public Participant GetParticipant(string username)
+        {
+            return _participants.Find(participant => participant.Username == username).FirstOrDefault();
+        }
+        
 
         public bool AddEntry(string participantId, Entry entry)
         {

@@ -30,7 +30,24 @@ namespace IsThisAMood
             try
             {
                 Log.Information("Starting web host");
-                CreateHostBuilder(args).Build().Run();
+                var host = CreateHostBuilder(args).Build();
+
+                using (var scope = host.Services.CreateScope())
+                {
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+                    var participantsService = scope.ServiceProvider.GetRequiredService<IParticipantsService>();
+
+                    var participants = participantsService.GetParticipants();
+
+                    foreach (var participant in participants)
+                    {
+                        userManager.CreateAsync(new IdentityUser(participant.Username), participant.Password).GetAwaiter();
+                    }
+
+                }
+
+                host.Run();
+                
                 return 0;
             }
             catch (Exception ex)
