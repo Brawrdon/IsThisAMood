@@ -39,7 +39,6 @@ namespace IsThisAMood.Controllers
             if (result.Succeeded)
             {
                 // Get Auth token
-                var client = _httpClientFactory.CreateClient();
                 var requestUrl =  new RequestUrl("http://localhost:6000/connect/authorize");
                 var url = requestUrl.CreateAuthorizeUrl(
                     clientId: viewModel.ClientId,

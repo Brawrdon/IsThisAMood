@@ -35,34 +35,19 @@ namespace IsThisAMood
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<IdentityDbContext>(builder => { builder.UseInMemoryDatabase("IsThisAMood"); } );
-            services.AddIdentity<IdentityUser, IdentityRole>(options =>
-                    {
-                        options.Password.RequireNonAlphanumeric = false;
-                        options.Password.RequireDigit = false;
-                        options.Password.RequireUppercase = false;
-                    })
-                .AddEntityFrameworkStores<IdentityDbContext>();
             
-            services.ConfigureApplicationCookie(options =>
-            {
-                options.LoginPath = "/auth";
-                options.Cookie.Name = "Cookie";
-            });
-
             services.AddIdentityServer()
-                .AddAspNetIdentity<IdentityUser>()
                 .AddDeveloperSigningCredential()
                 .AddInMemoryIdentityResources(GetIdentityResources())
                 .AddInMemoryClients(GetClients());
 
             services.AddAuthentication(options =>
                 {
-                    options.DefaultScheme = "Cookie";
+                    options.DefaultScheme = "IsThisAMood";
                     options.DefaultChallengeScheme = "oidc";
                     
                 })
-                .AddCookie("Cookie")
+                .AddCookie("IsThisAMood")
                 .AddOpenIdConnect("oidc", options =>
                 {
                     options.ClientId = Environment.GetEnvironmentVariable("ALEXA_CLIENT_ID");
@@ -71,6 +56,7 @@ namespace IsThisAMood
                     options.Authority = "http://localhost:6000/";
                     options.ResponseType = "code";
                     options.RequireHttpsMetadata = false;
+    
                 });
 
 
@@ -82,11 +68,7 @@ namespace IsThisAMood
 
             services.AddSingleton<IParticipantsService, ParticipantsService>();
             services.AddSingleton<CreateEntryStore>();
-            services.AddHttpClient();
-
-            services.AddMvc();
-
-            services.AddControllers().AddNewtonsoftJson();
+            services.AddMvc().AddNewtonsoftJson();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -112,7 +94,8 @@ namespace IsThisAMood
         {
             return new List<IdentityResource>
             {
-                new IdentityResources.OpenId()
+                new IdentityResources.OpenId(),
+                new IdentityResources.Email()
             };
         }
 
@@ -124,8 +107,9 @@ namespace IsThisAMood
                 {
                     ClientId = Environment.GetEnvironmentVariable("ALEXA_CLIENT_ID"),
                     RequireConsent = false,
+                    AlwaysIncludeUserClaimsInIdToken = true,
                     AllowedGrantTypes = GrantTypes.Code,
-                    AllowedScopes = {"openid"},
+                    AllowedScopes = {"openid", "email"},
                     RedirectUris =
                     {
                         Environment.GetEnvironmentVariable("ALEXA_REDIRECT_URI_ONE"),

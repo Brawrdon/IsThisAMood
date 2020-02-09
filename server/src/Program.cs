@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -29,23 +30,7 @@ namespace IsThisAMood
             try
             {
                 Log.Information("Starting web host");
-                var host = CreateHostBuilder(args).Build();
-
-                using (var scope = host.Services.CreateScope())
-                {
-                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-                    var participantsService = scope.ServiceProvider.GetRequiredService<IParticipantsService>();
-
-                    var participants = participantsService.GetParticipants();
-
-                    foreach (var participant in participants)
-                    {
-                        userManager.CreateAsync(new IdentityUser(participant.Username), participant.Password).GetAwaiter();
-                    }
-
-                }
-                
-                host.Run();
+                CreateHostBuilder(args).Build().Run();
                 return 0;
             }
             catch (Exception ex)

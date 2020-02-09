@@ -14,12 +14,7 @@ namespace IsThisAMood.Models.Database
         public string Username { get; set; }
         
         public string Password { get; set; }
-        
-        public string Email { get; set; }
-        
-        public List<Entry> Entries { get; set; }
-        
-        public bool IsActive { get; set; }
-        
+                
+        public List<Entry> Entries { get; set; }        
     }
 }

@@ -42,6 +42,7 @@ namespace IsThisAMood.Controllers
             }
             
             _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
+            _logger.LogDebug("Access token : {AccessToken}", skillRequest.Session.User.AccessToken);
 
             switch (skillRequest.Request.Type)
             {
