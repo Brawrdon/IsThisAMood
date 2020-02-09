@@ -5,10 +5,8 @@ using System.Threading.Tasks;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
 using IdentityServer4.Services;
-using IsThisAMood.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
-using Serilog;
 
 namespace IsThisAMood.Services
 {
@@ -25,13 +23,13 @@ namespace IsThisAMood.Services
         }
 
         public async Task GetProfileDataAsync(ProfileDataRequestContext context)
-        {
+        { 
             var sub = context.Subject.GetSubjectId();
             var user = await _userManager.FindByIdAsync(sub);
             
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Email, user.UserName),
+                new Claim("email", user.UserName),
             };
             
             claims = claims.Where(claim => context.RequestedClaimTypes.Contains(claim.Type)).ToList();
