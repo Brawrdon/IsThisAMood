@@ -5,18 +5,21 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace IsThisAMood.Models.Database
 {
-    
     public class Participant
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; }
-
-        public Guid LoggingGuid { get; set; }
-
-        public string AmazonId { get; set; }
-
+        
+        public string Username { get; set; }
+        
+        public string Password { get; set; }
+        
+        public string Email { get; set; }
+        
         public List<Entry> Entries { get; set; }
+        
+        public bool IsActive { get; set; }
         
     }
 }

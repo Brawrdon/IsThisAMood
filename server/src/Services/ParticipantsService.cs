@@ -1,14 +1,13 @@
 using System.Collections.Generic;
-using IsThisAMood.Models;
 using IsThisAMood.Models.Database;
 using Microsoft.Extensions.Logging;
-using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace IsThisAMood.Services
 {
     public interface IParticipantsService
     {
+        List<Participant> GetParticipants();
         bool AddEntry(string participantId, Entry entry);
     }
 
@@ -24,6 +23,11 @@ namespace IsThisAMood.Services
             var database = client.GetDatabase(settings.DatabaseName);
 
             _participants = database.GetCollection<Participant>(settings.CollectionName);
+        }
+
+        public List<Participant> GetParticipants()
+        {
+            return _participants.Find(participant => true).ToList();
         }
 
         public bool AddEntry(string participantId, Entry entry)

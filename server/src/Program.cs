@@ -1,5 +1,8 @@
 using System;
+using IsThisAMood.Services;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Events;
@@ -14,6 +17,7 @@ namespace IsThisAMood
             Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.AspNetCore.Authentication", LogEventLevel.Information)
             .Enrich.FromLogContext()
             .WriteTo.Console()
             .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri("http://localhost:9200") ){
@@ -25,7 +29,23 @@ namespace IsThisAMood
             try
             {
                 Log.Information("Starting web host");
-                CreateHostBuilder(args).Build().Run();
+                var host = CreateHostBuilder(args).Build();
+
+                using (var scope = host.Services.CreateScope())
+                {
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+                    var participantsService = scope.ServiceProvider.GetRequiredService<IParticipantsService>();
+
+                    var participants = participantsService.GetParticipants();
+
+                    foreach (var participant in participants)
+                    {
+                        userManager.CreateAsync(new IdentityUser(participant.Username), participant.Password).GetAwaiter();
+                    }
+
+                }
+                
+                host.Run();
                 return 0;
             }
             catch (Exception ex)
