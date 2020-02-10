@@ -20,14 +20,16 @@ namespace IsThisAMood.Controllers
         private readonly ILogger<AlexaController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
+        private readonly IParticipantsAuthenticationService _participantsAuthenticationService;
         private readonly CreateEntryStore _createEntryStore;
         private readonly AlexaSessionStore _alexaSessionStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, CreateEntryStore createEntryStore)
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IParticipantsAuthenticationService participantsAuthenticationService, CreateEntryStore createEntryStore)
         {
             _logger = logger;
             _configuration = configuration;
             _participantsService = participantsService;
+            _participantsAuthenticationService = participantsAuthenticationService;
             _createEntryStore = createEntryStore;
         }
         
@@ -42,6 +44,8 @@ namespace IsThisAMood.Controllers
             }
             
             _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
+
+            
 
             switch (skillRequest.Request.Type)
             {
@@ -102,7 +106,7 @@ namespace IsThisAMood.Controllers
             {   
                 string responseText;
                 // ToDo: Create proper participant IDs
-                if (!_participantsService.AddEntry("5ded84556acef0f6eff6da6f", entry)) {
+                if (!_participantsService.AddEntry(_participantsAuthenticationService.GetHashedAccessToken(session.User.AccessToken), entry)) {
                     responseText = _configuration["Responses:EntryAddFailure"];
                     return Ok(ResponseBuilder.Tell(responseText));
                 }

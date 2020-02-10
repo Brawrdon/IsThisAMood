@@ -20,6 +20,7 @@ namespace IsThisAMood.Services {
         bool Authenticate(string username, string password);
         string CreateAuthorisationCode(string username);
         string CreateAccessToken(string username);
+        string GetHashedAccessToken(string accessToken);
     }
 
     public class ParticipantsAuthenticationService : IParticipantsAuthenticationService
@@ -55,14 +56,9 @@ namespace IsThisAMood.Services {
 
         public string CreateAccessToken(string code)
         {
-            var token = Guid.NewGuid().ToString();
-            string hashedCode;
-            using (var algorithm = SHA256.Create()) 
-            {
-                var hashedBytes = algorithm.ComputeHash(Encoding.UTF8.GetBytes(token));
-                hashedCode = BitConverter.ToString(hashedBytes);
-            }  
-
+            var accessToken = Guid.NewGuid().ToString();
+            var hashedToken = GetHashedAccessToken(accessToken);
+            
             if (!_authorisationStore.Codes.TryGetValue(code, out var username))
                 return null;
 
@@ -71,10 +67,20 @@ namespace IsThisAMood.Services {
             if(participant == null)
                 return null;
 
-            if(!_participantsService.SetAccessToken(participant.Id, hashedCode))
+            if(!_participantsService.SetAccessToken(participant.Id, hashedToken))
                 return null;
 
-            return token;
+            return accessToken;
+        }
+
+        public string GetHashedAccessToken(string accessToken)
+        {
+            using (var algorithm = SHA256.Create()) 
+            {
+                var hashedBytes = algorithm.ComputeHash(Encoding.UTF8.GetBytes(accessToken));
+                return BitConverter.ToString(hashedBytes);
+            }  
+        
         }
 
         public string CreateAuthorisationCode(string username)

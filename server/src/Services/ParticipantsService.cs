@@ -8,8 +8,8 @@ namespace IsThisAMood.Services
     public interface IParticipantsService
     {
         List<Participant> GetParticipants();
-        Participant GetParticipant(string username);
-        bool AddEntry(string participantId, Entry entry);
+        Participant GetParticipant(string accessToken);
+        bool AddEntry(string accessToken, Entry entry);
         bool SetAccessToken(string participantId, string accessToken);
     }
 
@@ -32,17 +32,18 @@ namespace IsThisAMood.Services
             return _participants.Find(participant => true).ToList();
         }
 
-        public Participant GetParticipant(string username)
+        public Participant GetParticipant(string accessToken)
         {
-            return _participants.Find(participant => participant.Username == username).FirstOrDefault();
+            return _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
         }
+
         
-        public bool AddEntry(string participantId, Entry entry)
+        public bool AddEntry(string accessToken, Entry entry)
         {
             var builder = Builders<Participant>.Update; 
             var update = builder.Push("Entries", entry);
 
-            var updateResult = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
+            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
 
             if(!updateResult.IsAcknowledged) {
                 _logger.LogError("Attempting to insert entry {EntryID} was not acknowledged", entry.Id);
@@ -81,5 +82,7 @@ namespace IsThisAMood.Services
             return true;
 
         }
+
+        
     }
 }
