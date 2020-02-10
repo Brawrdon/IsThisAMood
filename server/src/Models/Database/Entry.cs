@@ -14,7 +14,6 @@ namespace IsThisAMood.Models.Database
 
         public int Rating { get; set; }
 
-        public List<string> Activities { get; set; }
-        
+        public List<string> Activities { get; set; }    
     }
 }

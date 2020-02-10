@@ -10,6 +10,7 @@ namespace IsThisAMood.Services
         List<Participant> GetParticipants();
         Participant GetParticipant(string username);
         bool AddEntry(string participantId, Entry entry);
+        bool SetAccessToken(string participantId, string accessToken);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -36,7 +37,6 @@ namespace IsThisAMood.Services
             return _participants.Find(participant => participant.Username == username).FirstOrDefault();
         }
         
-
         public bool AddEntry(string participantId, Entry entry)
         {
             var builder = Builders<Participant>.Update; 
@@ -58,6 +58,28 @@ namespace IsThisAMood.Services
             
             return true;
         }
-        
+
+        public bool SetAccessToken(string participantId, string accessToken)
+        {
+            var builder = Builders<Participant>.Update; 
+            var update = builder.Set(participant => participant.AccessToken, accessToken);
+
+            var updateResult = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
+
+            if(!updateResult.IsAcknowledged) {
+                _logger.LogError("Attempting to update participant {ParticipantID}'s access token was not acknowledged", participantId);
+                return false;
+            }
+                
+            if(updateResult.ModifiedCount != 1) {
+                _logger.LogError("Modified count when attempting to update access token for participant {ParticipantID} was {ModifiedCount}", participantId, updateResult.ModifiedCount);
+                return false;    
+            }
+            
+            _logger.LogDebug("Participant {ParticipantID}'s access token was updated", participantId);
+            
+            return true;
+
+        }
     }
 }

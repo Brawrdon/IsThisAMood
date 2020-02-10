@@ -1,4 +1,4 @@
-@model IsThisAMood.Controllers.LoginViewModel
+@model IsThisAMood.Controllers.LoginFormModel
 @addTagHelper "*, Microsoft.AspNetCore.Mvc.TagHelpers"
 
 @{
@@ -13,7 +13,7 @@
 </head>
 <body>
 <div>
-    <form action="/projects/IsThisAMood/api/auth" method="post">
+    <form action="/projects/IsThisAMood/api/login" method="post">
         <input type="hidden" asp-for="ClientId"/>
         <input type="hidden" asp-for="RedirectUri"/>
         <input type="hidden" asp-for="ResponseType"/>
