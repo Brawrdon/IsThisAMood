@@ -67,7 +67,7 @@ namespace IsThisAMood.Services {
             if(participant == null)
                 return null;
 
-            if(!_participantsService.SetAccessToken(participant.Id, hashedToken))
+            if(!_participantsService.SetAccessToken(participant.Username, hashedToken))
                 return null;
 
             return accessToken;

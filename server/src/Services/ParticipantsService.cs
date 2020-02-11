@@ -8,9 +8,9 @@ namespace IsThisAMood.Services
     public interface IParticipantsService
     {
         List<Participant> GetParticipants();
-        Participant GetParticipant(string accessToken);
+        Participant GetParticipant(string username);
         bool AddEntry(string accessToken, Entry entry);
-        bool SetAccessToken(string participantId, string accessToken);
+        bool SetAccessToken(string username, string accessToken);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -32,12 +32,17 @@ namespace IsThisAMood.Services
             return _participants.Find(participant => true).ToList();
         }
 
-        public Participant GetParticipant(string accessToken)
+        public Participant GetParticipant(string username)
+        {
+            return _participants.Find(participant => participant.Username == username).FirstOrDefault();
+        }
+
+        
+        public Participant GetParticipantFromToken(string accessToken)
         {
             return _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
         }
 
-        
         public bool AddEntry(string accessToken, Entry entry)
         {
             var builder = Builders<Participant>.Update; 
@@ -60,24 +65,24 @@ namespace IsThisAMood.Services
             return true;
         }
 
-        public bool SetAccessToken(string participantId, string accessToken)
+        public bool SetAccessToken(string username, string accessToken)
         {
             var builder = Builders<Participant>.Update; 
             var update = builder.Set(participant => participant.AccessToken, accessToken);
 
-            var updateResult = _participants.UpdateOne(participant => participant.Id.Equals(participantId), update);
+            var updateResult = _participants.UpdateOne(participant => participant.Username == username, update);
 
             if(!updateResult.IsAcknowledged) {
-                _logger.LogError("Attempting to update participant {ParticipantID}'s access token was not acknowledged", participantId);
+                _logger.LogError("Attempting to update participant {UserName}'s access token was not acknowledged", username);
                 return false;
             }
                 
             if(updateResult.ModifiedCount != 1) {
-                _logger.LogError("Modified count when attempting to update access token for participant {ParticipantID} was {ModifiedCount}", participantId, updateResult.ModifiedCount);
+                _logger.LogError("Modified count when attempting to update access token for participant {UserName} was {ModifiedCount}", username, updateResult.ModifiedCount);
                 return false;    
             }
             
-            _logger.LogDebug("Participant {ParticipantID}'s access token was updated", participantId);
+            _logger.LogDebug("Participant {UserName}'s access token was updated", username);
             
             return true;
 
