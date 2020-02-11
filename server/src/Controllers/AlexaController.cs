@@ -129,6 +129,7 @@ namespace IsThisAMood.Controllers
             var entry = new Entry
             {
                 Id = ObjectId.GenerateNewId().ToString(),
+                Name = slots["name"].Value,
                 Mood = slots["mood"].Value, 
                 Rating = int.Parse(slots["rating"].Value),
                 Activities = new List<string>()
