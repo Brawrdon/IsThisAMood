@@ -223,14 +223,7 @@ namespace IsThisAMood.Controllers
             var reprompt = new Reprompt {OutputSpeech = repromptSpeech};
 
             var skillResponse = ResponseBuilder.Ask(speech, reprompt, session);
-
-            LogSkillResponse(skillResponse);
             return skillResponse;
-        }
-
-        private void LogSkillResponse(SkillResponse skillResponse)
-        {
-            _logger.LogDebug("Skill response : {@SkillResponse}", skillResponse);
         }
     }
 }

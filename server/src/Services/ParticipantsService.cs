@@ -92,7 +92,6 @@ namespace IsThisAMood.Services
 
         public List<Entry> GetEntries(string accessToken, string mood = null)
         {
-            _logger.LogDebug("{AccessToken}", accessToken);
             var particpant = GetParticipantFromToken(accessToken);
             var entries = particpant.Entries;
 
