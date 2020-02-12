@@ -1,9 +1,9 @@
-using Alexa.NET.Request;
-using Microsoft.AspNetCore.Http;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Alexa.NET.Request;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace IsThisAMood.Middlewares
@@ -13,8 +13,8 @@ namespace IsThisAMood.Middlewares
     /// </summary>
     public class AlexaRequestValidationMiddleware
     {
-        private readonly RequestDelegate _next;
         private readonly ILogger<AlexaRequestValidationMiddleware> _logger;
+        private readonly RequestDelegate _next;
 
         /// <summary>
         /// Constructor
@@ -36,7 +36,7 @@ namespace IsThisAMood.Middlewares
         {
             // EnableBuffering so the body can be read without causing issues to the request pipeline
             context.Request.EnableBuffering();
-            
+
             // Verify SignatureCertChainUrl is present
             context.Request.Headers.TryGetValue("SignatureCertChainUrl", out var signatureChainUrl);
             if (string.IsNullOrWhiteSpace(signatureChainUrl))
@@ -72,6 +72,7 @@ namespace IsThisAMood.Middlewares
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return;
             }
+
             var valid = await RequestVerification.Verify(signature, certUrl, body);
             if (!valid)
             {
@@ -82,7 +83,7 @@ namespace IsThisAMood.Middlewares
             await _next(context);
         }
     }
-    
+
     /// <summary>
     /// Middleware builder
     /// </summary>
@@ -99,4 +100,3 @@ namespace IsThisAMood.Middlewares
         }
     }
 }
-
