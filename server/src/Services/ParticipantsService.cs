@@ -11,6 +11,7 @@ namespace IsThisAMood.Services
         Participant GetParticipant(string username);
         bool AddEntry(string accessToken, Entry entry);
         bool SetAccessToken(string username, string accessToken);
+        List<Entry> GetEntries(string accessToken, string mood);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -85,9 +86,22 @@ namespace IsThisAMood.Services
             _logger.LogDebug("Participant {UserName}'s access token was updated", username);
             
             return true;
-
         }
 
-        
+        public List<Entry> GetEntries(string accessToken, string mood = null)
+        {
+            _logger.LogDebug("{AccessToken}", accessToken);
+            var particpant = GetParticipantFromToken(accessToken);
+            
+            var entries = particpant.Entries;
+
+            if(mood != null) {
+                entries = entries.FindAll(x => x.Mood == mood);
+            }
+
+            entries.Reverse();
+
+            return entries;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Alexa.NET;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
@@ -71,7 +72,9 @@ namespace IsThisAMood.Controllers
             switch (intentRequest?.Intent.Name)
             {
                 case "CreateEntry":
-                    return CreateEntry(skillRequest.Session.SessionId, intentRequest);
+                    return CreateEntry(intentRequest);
+                case "ListEntries":
+                    return ListEntries(skillRequest.Session.User.AccessToken, intentRequest);
                 case "AddActivity":
                     return AddActivity(skillRequest.Session, intentRequest);
                 case "AMAZON.YesIntent":
@@ -83,6 +86,7 @@ namespace IsThisAMood.Controllers
                     return UnknownRequest();
             }
         }
+
 
         private IActionResult YesIntent(Session session)
         {    
@@ -100,7 +104,7 @@ namespace IsThisAMood.Controllers
                 default:
                     return UnknownRequest();
             }
-            
+             
         }
 
 
@@ -131,7 +135,7 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
         }
 
-        private IActionResult CreateEntry(string sessionId, IntentRequest createEntryRequest)
+        private IActionResult CreateEntry(IntentRequest createEntryRequest)
         {
             var responseText = _configuration["Responses:FirstActivityRequest"];
             var skillResponse = BuildAskResponse(responseText);
@@ -144,6 +148,48 @@ namespace IsThisAMood.Controllers
             };
     
             return Ok(skillResponse);
+        }
+
+        private IActionResult ListEntries(string accessToken, IntentRequest intentRequest)
+        {
+            string mood = null;
+            
+            if(intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
+                mood = slot.Value;
+
+            var entries = _participantsService.GetEntries(_participantsAuthenticationService.GetHashedAccessToken(accessToken), mood);
+
+            var entriesRespose = "";
+            var latestEntries = entries.Take(3);
+ 
+            var entryNumber = 1;
+            foreach(var entry in latestEntries) {
+                entriesRespose += (" " +NumberToText(entryNumber) + ": " + entry.Name + "...");
+                entryNumber++;
+            }
+
+            var skillResponse = BuildAskResponse(_configuration["Responses:ViewEntryRequestBegin"] + entriesRespose + _configuration["Responses:ViewEntryRequestEnd"]);
+
+            skillResponse.SessionAttributes = new Dictionary<string, object> {
+                 {"currentIntent", "ListEntries"},
+                 {"allEntries", entries},
+                 {"page", 1}
+            };
+
+            return Ok(skillResponse);
+        }
+
+        private string NumberToText(int number) {
+            switch(number) {
+                case 1:
+                    return "one";
+                case 2:
+                    return "two";
+                case 3:
+                    return "three";
+                default:
+                    return "";
+            }
         }
 
         private IActionResult AddActivity(Session session, IntentRequest intentRequest)
