@@ -209,7 +209,6 @@ namespace IsThisAMood.Controllers
         {
             var speech = new PlainTextOutputSpeech(message);
             var skillResponse = ResponseBuilder.Tell(speech);
-            LogSkillResponse(skillResponse);
             return skillResponse;
         }
 
