@@ -1,15 +1,9 @@
-using System;
-using System.Collections.Generic;
-using IdentityServer4.Models;
 using IsThisAMood.Middlewares;
 using IsThisAMood.Models.Database;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -57,6 +51,5 @@ namespace IsThisAMood
 
             app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
         }
-
     }
 }

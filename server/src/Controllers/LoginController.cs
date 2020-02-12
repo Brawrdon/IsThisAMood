@@ -1,24 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using IdentityModel.Client;
-using IsThisAMood.Models;
 using IsThisAMood.Models.Responses;
 using IsThisAMood.Services;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 namespace IsThisAMood.Controllers
-{ 
+{
     public class LoginController : Controller
     {
         private readonly ILogger<AlexaController> _logger;
         private readonly IParticipantsAuthenticationService _participantsAuthenticationService;
-        public LoginController(ILogger<AlexaController> logger, IParticipantsAuthenticationService participantsAuthenticationService)
+
+        public LoginController(ILogger<AlexaController> logger,
+            IParticipantsAuthenticationService participantsAuthenticationService)
         {
             _logger = logger;
             _participantsAuthenticationService = participantsAuthenticationService;
@@ -30,22 +23,21 @@ namespace IsThisAMood.Controllers
             [FromQuery(Name = "redirect_uri")] string redirectUri,
             [FromQuery(Name = "response_type")] string responseType,
             [FromQuery] string scope,
-            [FromQuery] string state,
-            [FromQuery] string login)
+            [FromQuery] string state)
         {
             return View("LoginForm", new LoginFormModel
             {
                 ClientId = clientId, RedirectUri = redirectUri, ResponseType = responseType, Scope = scope,
-                State = state, Login = login
+                State = state
             });
         }
 
-        [HttpPost] 
+        [HttpPost]
         [Route("/auth/token")]
         public IActionResult GetAuthenticationToken([FromForm(Name = "grant_type")] string grantType,
-        [FromForm] string code,
-        [FromForm(Name = "client_id")] string clientId,
-        [FromForm(Name = "client_secret")] string clientSecret)
+            [FromForm] string code,
+            [FromForm(Name = "client_id")] string clientId,
+            [FromForm(Name = "client_secret")] string clientSecret)
         {
             // ToDo: Check clientId and clientSecret
 
@@ -53,7 +45,8 @@ namespace IsThisAMood.Controllers
 
             //ToDo: Deal with failures
 
-            var accesToken = new AccessToken {
+            var accesToken = new AccessToken
+            {
                 Token = token,
                 Type = "bearer"
             };
@@ -66,11 +59,13 @@ namespace IsThisAMood.Controllers
         [Route("[controller]")]
         public IActionResult Token([FromForm] LoginFormModel loginForm)
         {
-            if(!_participantsAuthenticationService.Authenticate(loginForm.Username, loginForm.Password)) {
-                return RedirectToAction("LoginForm", new LoginFormModel
+            if (!_participantsAuthenticationService.Authenticate(loginForm.Username, loginForm.Password))
+            {
+                return RedirectToAction("Login", new LoginFormModel
                 {
-                    ClientId = loginForm.ClientId, RedirectUri = loginForm.RedirectUri, ResponseType = loginForm.ResponseType, Scope = loginForm.Scope,
-                    State = loginForm.State, Login = "failed"
+                    ClientId = loginForm.ClientId, RedirectUri = loginForm.RedirectUri,
+                    ResponseType = loginForm.ResponseType, Scope = loginForm.Scope,
+                    State = loginForm.State
                 });
             }
 
@@ -88,7 +83,5 @@ namespace IsThisAMood.Controllers
         public string ResponseType { get; set; }
         public string Scope { get; set; }
         public string State { get; set; }
-        public string Login { get; set; }
-
     }
 }
