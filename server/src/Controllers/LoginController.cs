@@ -17,11 +17,11 @@ namespace IsThisAMood.Controllers
     public class LoginController : Controller
     {
         private readonly ILogger<AlexaController> _logger;
-        private readonly IParticipantsAuthenticationService _authenticationService;
-        public LoginController(ILogger<AlexaController> logger, IParticipantsAuthenticationService authenticationService)
+        private readonly IParticipantsAuthenticationService _participantsAuthenticationService;
+        public LoginController(ILogger<AlexaController> logger, IParticipantsAuthenticationService participantsAuthenticationService)
         {
             _logger = logger;
-            _authenticationService = authenticationService;
+            _participantsAuthenticationService = participantsAuthenticationService;
         }
 
         [HttpGet]
@@ -49,7 +49,7 @@ namespace IsThisAMood.Controllers
         {
             // ToDo: Check clientId and clientSecret
 
-            var token = _authenticationService.CreateAccessToken(code);
+            var token = _participantsAuthenticationService.CreateAccessToken(code);
 
             //ToDo: Deal with failures
 
@@ -66,7 +66,7 @@ namespace IsThisAMood.Controllers
         [Route("[controller]")]
         public IActionResult Token([FromForm] LoginFormModel loginForm)
         {
-            if(!_authenticationService.Authenticate(loginForm.Username, loginForm.Password)) {
+            if(!_participantsAuthenticationService.Authenticate(loginForm.Username, loginForm.Password)) {
                 return RedirectToAction("LoginForm", new LoginFormModel
                 {
                     ClientId = loginForm.ClientId, RedirectUri = loginForm.RedirectUri, ResponseType = loginForm.ResponseType, Scope = loginForm.Scope,
@@ -74,7 +74,7 @@ namespace IsThisAMood.Controllers
                 });
             }
 
-            var code = _authenticationService.CreateAuthorisationCode(loginForm.Username);
+            var code = _participantsAuthenticationService.CreateAuthorisationCode(loginForm.Username);
             return Redirect(loginForm.RedirectUri + "?state=" + loginForm.State + "&code=" + code);
         }
     }

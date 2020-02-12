@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using Newtonsoft.Json.Linq;
 
 namespace IsThisAMood.Controllers
 {
@@ -21,16 +22,14 @@ namespace IsThisAMood.Controllers
         private readonly IConfiguration _configuration;
         private readonly IParticipantsService _participantsService;
         private readonly IParticipantsAuthenticationService _participantsAuthenticationService;
-        private readonly CreateEntryStore _createEntryStore;
-        private readonly AlexaSessionStore _alexaSessionStore;
 
-        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IParticipantsAuthenticationService participantsAuthenticationService, CreateEntryStore createEntryStore)
+
+        public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration, IParticipantsService participantsService, IParticipantsAuthenticationService participantsAuthenticationService)
         {
             _logger = logger;
             _configuration = configuration;
             _participantsService = participantsService;
             _participantsAuthenticationService = participantsAuthenticationService;
-            _createEntryStore = createEntryStore;
         }
         
         [HttpPost]
@@ -46,7 +45,6 @@ namespace IsThisAMood.Controllers
             _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
 
             
-
             switch (skillRequest.Request.Type)
             {
                 case "LaunchRequest":
@@ -87,36 +85,46 @@ namespace IsThisAMood.Controllers
         }
 
         private IActionResult YesIntent(Session session)
-        {
-            // Check that a session is currently in the createEntryStore
-            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out _))
-            {
-                _logger.LogDebug("Delegating dialogue to {DelegatedActivity}");
-                return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
-            }
+        {    
+            if(session.Attributes == null)
+                return UnknownRequest();
 
-            LogSessionNotInStore(session.SessionId, "YesIntent"); 
-            return UnknownRequest();
+            if(!session.Attributes.TryGetValue("currentIntent", out var attributeObject))
+                return UnknownRequest();
+            
+            var currentIntent = (string) attributeObject;
+
+            switch(currentIntent) {
+                case "CreateEntry":
+                    return Ok(ResponseBuilder.DialogDelegate(session, new Intent { Name = "AddActivity"}));
+                default:
+                    return UnknownRequest();
+            }
+            
         }
+
 
         private IActionResult NoIntent(Session session)
         {
-            // Check that a session is currently in the createEntryStore
-            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry))
-            {   
-                string responseText;
-                // ToDo: Create proper participant IDs
-                if (!_participantsService.AddEntry(_participantsAuthenticationService.GetHashedAccessToken(session.User.AccessToken), entry)) {
-                    responseText = _configuration["Responses:EntryAddFailure"];
-                    return Ok(ResponseBuilder.Tell(responseText));
-                }
+            var activitiesArray = (JArray) session.Attributes["activities"];
+            var entry = new Entry
+            {
+                Id = ObjectId.GenerateNewId().ToString(),
+                Name = (string) session.Attributes["name"],
+                Mood = (string) session.Attributes["mood"], 
+                Rating = int.Parse((string) session.Attributes["rating"]),
+                Activities = activitiesArray.ToObject<List<string>>()
+            };
 
+            string responseText;
+            if (!_participantsService.AddEntry(_participantsAuthenticationService.GetHashedAccessToken(session.User.AccessToken), entry))
+                responseText = _configuration["Responses:EntryAddFailure"];
+            else
                 responseText = _configuration["Responses:EntryAdded"];
-                return Ok(ResponseBuilder.Tell(responseText));
-            }
+
+            return Ok(ResponseBuilder.Tell(responseText));
             
-            LogSessionNotInStore(session.SessionId, "NoIntent");
-            return UnknownRequest();
+            
         }
         private IActionResult UnknownRequest()
         {
@@ -125,35 +133,31 @@ namespace IsThisAMood.Controllers
 
         private IActionResult CreateEntry(string sessionId, IntentRequest createEntryRequest)
         {
-            var slots = createEntryRequest.Intent.Slots;
-            var entry = new Entry
-            {
-                Id = ObjectId.GenerateNewId().ToString(),
-                Name = slots["name"].Value,
-                Mood = slots["mood"].Value, 
-                Rating = int.Parse(slots["rating"].Value),
-                Activities = new List<string>()
-            };
-            
-            if(!_createEntryStore.Entries.TryAdd(sessionId, entry)) {
-                _logger.LogWarning("Unable to add session {SessionID} to createEntryStore");
-                return Ok(BuildTellResponse(_configuration["Responses:EntryAddFailure"]));
-            }
-            
             var responseText = _configuration["Responses:FirstActivityRequest"];
-            
-            return Ok(BuildAskResponse(responseText));
+            var skillResponse = BuildAskResponse(responseText);
+            skillResponse.SessionAttributes = new Dictionary<string, object> {
+                {"currentIntent", "CreateEntry"},
+                {"name", createEntryRequest.Intent.Slots["name"].Value},
+                {"mood", createEntryRequest.Intent.Slots["mood"].Value},
+                {"rating", createEntryRequest.Intent.Slots["rating"].Value},
+                {"activities", new JArray()}
+            };
+    
+            return Ok(skillResponse);
         }
 
         private IActionResult AddActivity(Session session, IntentRequest intentRequest)
         {
-            // Check the session is currently active
-            if (_createEntryStore.Entries.TryGetValue(session.SessionId, out var entry) == false)
+            if(session.Attributes == null)
                 return UnknownRequest();
-            
-            entry.Activities.Add(intentRequest.Intent.Slots["activity"].Value);
 
-            return Ok(BuildAskResponse(_configuration["Responses:ActivityRequest"]));
+            if((string) session.Attributes["currentIntent"] != "CreateEntry")
+                return UnknownRequest();
+                
+            var activities = (JArray) session.Attributes["activities"]; 
+            activities.Add(intentRequest.Intent.Slots["activity"].Value);
+            
+            return Ok(BuildAskResponse(_configuration["Responses:ActivityRequest"], session: session));
         }
 
         private SkillResponse BuildTellResponse(string message)
@@ -163,7 +167,7 @@ namespace IsThisAMood.Controllers
             LogSkillResponse(skillResponse);
             return skillResponse;
         }
-        private SkillResponse BuildAskResponse(string message, string repromptMessage = null)
+        private SkillResponse BuildAskResponse(string message, string repromptMessage = null, Session session = null)
         {
             if (repromptMessage == null)
                 repromptMessage = message;
@@ -172,7 +176,8 @@ namespace IsThisAMood.Controllers
             var repromptSpeech = new PlainTextOutputSpeech(repromptMessage);
             var reprompt = new Reprompt { OutputSpeech = repromptSpeech };
 
-            var skillResponse = ResponseBuilder.Ask(speech, reprompt);
+            var skillResponse = ResponseBuilder.Ask(speech, reprompt, session);
+            
             LogSkillResponse(skillResponse);
             return skillResponse;
         }

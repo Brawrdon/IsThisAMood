@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -16,6 +17,6 @@ namespace IsThisAMood.Models.Database
 
         public int Rating { get; set; }
 
-        public List<string> Activities { get; set; }    
+        public List<string> Activities { get; set; }
     }
 }
