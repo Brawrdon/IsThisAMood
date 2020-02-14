@@ -84,14 +84,16 @@ namespace IsThisAMood.Controllers
                 case "AMAZON.NoIntent":
                     return NoIntent(skillRequest.Session);
                 case "AMAZON.NextIntent":
-                    return NextIntent(skillRequest.Session);
+                    return NavigiationIntent(skillRequest.Session, 1);
+                case "AMAZON.PreviousIntent":
+                    return NavigiationIntent(skillRequest.Session, -1);
                 default:
                     _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
                     return UnknownRequest();
             }
         }
 
-        private IActionResult NextIntent(Session session)
+        private IActionResult NavigiationIntent(Session session, int moveBy)
         {
             if (session.Attributes == null)
                 return UnknownRequest();
@@ -113,7 +115,7 @@ namespace IsThisAMood.Controllers
 
             return currentIntent switch
             {
-                "ListEntries" => Ok(GetEntriesFromPage(page + 1, entries)),
+                "ListEntries" =>Ok(GetEntriesFromPage(entries, page + moveBy)),
                 _ => UnknownRequest()
             };
         }
@@ -185,13 +187,16 @@ namespace IsThisAMood.Controllers
                 mood = slot.Value;
 
             var entries = _participantsService.GetEntries(_participantsAuthenticationService.GetHashedAccessToken(accessToken), mood);
-            SkillResponse skillResponse = GetEntriesFromPage(1, entries);
+            SkillResponse skillResponse = GetEntriesFromPage(entries);
 
             return Ok(skillResponse);
         }
 
-        private SkillResponse GetEntriesFromPage(long page, List<Entry> entries)
+        private SkillResponse GetEntriesFromPage(List<Entry> entries, long page = 1)
         {
+            if(page < 1)
+                page = 1;
+
             var lastPage = Math.Ceiling((float) entries.Count / 3);
             
             if(page > lastPage)
@@ -199,9 +204,10 @@ namespace IsThisAMood.Controllers
 
             var index = (int) (3 * page) - 3;
             var count = 3;
+            var entriesInPage = entries.Count - index;
 
-            if(entries.Count - index < count)
-                count = entries.Count - index;  
+            if(entriesInPage < count)
+                count = entriesInPage;  
                 
             var entriesRespose = "";
             
@@ -210,11 +216,11 @@ namespace IsThisAMood.Controllers
             var entryNumber = 1;
             foreach (var entry in latestEntries)
             {
-                entriesRespose += (" " + NumberToText(entryNumber) + ": " + entry.Name + "...");
+                entriesRespose += $"<say-as interpret-as=\"ordinal\">{entryNumber}</say-as> entry: {entry.Name}... ";
                 entryNumber++;
             }
-
-            var skillResponse = BuildAskResponse(_configuration["Responses:ViewEntryRequestBegin"] + entriesRespose + _configuration["Responses:ViewEntryRequestEnd"]);
+            
+            var skillResponse = BuildAskResponse($"Page {page} out of {lastPage}. " + entriesRespose + _configuration["Responses:ListEntriesEnd"]);
 
             skillResponse.SessionAttributes = new Dictionary<string, object> {
                  {"currentIntent", "ListEntries"},
@@ -222,19 +228,6 @@ namespace IsThisAMood.Controllers
                  {"page", page}
             };
             return skillResponse;
-        }
-
-        private string NumberToText(int number) {
-            switch(number) {
-                case 1:
-                    return "one";
-                case 2:
-                    return "two";
-                case 3:
-                    return "three";
-                default:
-                    return "";
-            }
         }
 
         private IActionResult AddActivity(Session session, IntentRequest intentRequest)
@@ -260,11 +253,13 @@ namespace IsThisAMood.Controllers
 
         private SkillResponse BuildAskResponse(string message, string repromptMessage = null, Session session = null)
         {
+            message = "<speak>" + message + "</speak>";
+
             if (repromptMessage == null)
                 repromptMessage = message;
 
-            var speech = new PlainTextOutputSpeech(message);
-            var repromptSpeech = new PlainTextOutputSpeech(repromptMessage);
+            var speech = new SsmlOutputSpeech(message);
+            var repromptSpeech = new SsmlOutputSpeech(repromptMessage);
             var reprompt = new Reprompt {OutputSpeech = repromptSpeech};
 
             var skillResponse = ResponseBuilder.Ask(speech, reprompt, session);
