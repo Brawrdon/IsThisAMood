@@ -46,9 +46,11 @@ namespace IsThisAMood
                 ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
             });
 
-            if (!env.IsDevelopment())
-                app.UseAlexaRequestValidation();
+            if (!env.IsDevelopment()) {
+                app.UseWhen(context => context.Request.Path.StartsWithSegments("/alexa"), appBuilder => appBuilder.UseAlexaRequestValidation());
+            }
 
+            
             app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
         }
     }

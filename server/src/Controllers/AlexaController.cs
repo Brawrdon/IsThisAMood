@@ -83,12 +83,40 @@ namespace IsThisAMood.Controllers
                     return YesIntent(skillRequest.Session);
                 case "AMAZON.NoIntent":
                     return NoIntent(skillRequest.Session);
+                case "AMAZON.NextIntent":
+                    return NextIntent(skillRequest.Session);
                 default:
                     _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
                     return UnknownRequest();
             }
         }
 
+        private IActionResult NextIntent(Session session)
+        {
+            if (session.Attributes == null)
+                return UnknownRequest();
+
+            if (!session.Attributes.TryGetValue("currentIntent", out var currentIntentObject))
+                return UnknownRequest();
+
+            if(!session.Attributes.TryGetValue("page", out var pageObject))
+                return UnknownRequest();
+
+            if(!session.Attributes.TryGetValue("entries", out var entriesObject))
+                return UnknownRequest();
+
+
+            var currentIntent = (string) currentIntentObject;
+            var page = (long) pageObject;
+            var entriesArray = (JArray) entriesObject;
+            var entries = entriesArray.ToObject<List<Entry>>();
+
+            return currentIntent switch
+            {
+                "ListEntries" => Ok(GetEntriesFromPage(page + 1, entries)),
+                _ => UnknownRequest()
+            };
+        }
 
         private IActionResult YesIntent(Session session)
         {
@@ -152,18 +180,37 @@ namespace IsThisAMood.Controllers
         private IActionResult ListEntries(string accessToken, IntentRequest intentRequest)
         {
             string mood = null;
-            
-            if(intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
+
+            if (intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
                 mood = slot.Value;
 
             var entries = _participantsService.GetEntries(_participantsAuthenticationService.GetHashedAccessToken(accessToken), mood);
+            SkillResponse skillResponse = GetEntriesFromPage(1, entries);
 
+            return Ok(skillResponse);
+        }
+
+        private SkillResponse GetEntriesFromPage(long page, List<Entry> entries)
+        {
+            var lastPage = Math.Ceiling((float) entries.Count / 3);
+            
+            if(page > lastPage)
+                return BuildAskResponse(_configuration["Responses:ListEntriesEmpty"]);
+
+            var index = (int) (3 * page) - 3;
+            var count = 3;
+
+            if(entries.Count - index < count)
+                count = entries.Count - index;  
+                
             var entriesRespose = "";
-            var latestEntries = entries.Take(3);
- 
+            
+            var latestEntries = entries.GetRange(index, count);
+
             var entryNumber = 1;
-            foreach(var entry in latestEntries) {
-                entriesRespose += (" " +NumberToText(entryNumber) + ": " + entry.Name + "...");
+            foreach (var entry in latestEntries)
+            {
+                entriesRespose += (" " + NumberToText(entryNumber) + ": " + entry.Name + "...");
                 entryNumber++;
             }
 
@@ -171,11 +218,10 @@ namespace IsThisAMood.Controllers
 
             skillResponse.SessionAttributes = new Dictionary<string, object> {
                  {"currentIntent", "ListEntries"},
-                 {"allEntries", entries},
-                 {"page", 1}
+                 {"entries", entries},
+                 {"page", page}
             };
-
-            return Ok(skillResponse);
+            return skillResponse;
         }
 
         private string NumberToText(int number) {
