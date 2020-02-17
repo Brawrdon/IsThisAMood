@@ -97,14 +97,6 @@ namespace IsThisAMood.Controllers
             }
         }
 
-        private IActionResult DeleteEntry(string accessToken, IntentRequest deleteEntryIntent)
-        {
-            var entry = _participantsService.GetEntry(_participantsAuthenticationService.GetHashedAccessToken(accessToken), deleteEntryIntent.Intent.Slots["name"].Value);
-            
-            if (entry == null) 
-                return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"]));
-
-        }
 
         private IActionResult ViewEntry(string accessToken, IntentRequest viewEntryRequest)
         {
