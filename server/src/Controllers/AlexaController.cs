@@ -77,6 +77,10 @@ namespace IsThisAMood.Controllers
                     return CreateEntry(intentRequest);
                 case "ListEntries":
                     return ListEntries(skillRequest.Session.User.AccessToken, intentRequest);
+                case "ViewEntry":
+                    return ViewEntry(skillRequest.Session.User.AccessToken, intentRequest);
+                case "":
+                    return DeleteEntry(skillRequest.Session.User.AccessToken, intentRequest);
                 case "AddActivity":
                     return AddActivity(skillRequest.Session, intentRequest);
                 case "AMAZON.YesIntent":
@@ -91,6 +95,41 @@ namespace IsThisAMood.Controllers
                     _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
                     return UnknownRequest();
             }
+        }
+
+        private IActionResult DeleteEntry(string accessToken, IntentRequest deleteEntryIntent)
+        {
+            var entry = _participantsService.GetEntry(_participantsAuthenticationService.GetHashedAccessToken(accessToken), deleteEntryIntent.Intent.Slots["name"].Value);
+            
+            if (entry == null) 
+                return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"]));
+
+        }
+
+        private IActionResult ViewEntry(string accessToken, IntentRequest viewEntryRequest)
+        {
+            var entry = _participantsService.GetEntry(_participantsAuthenticationService.GetHashedAccessToken(accessToken), viewEntryRequest.Intent.Slots["name"].Value);
+            
+            if (entry == null) 
+                return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"]));
+
+            var responseText = $"Here's the entry for {entry.Name}. You felt {entry.Mood} and gave it a rating of {entry.Rating}.";
+
+            var activities = entry.Activities.ToList();
+            if (activities.Count == 0)
+            {
+              responseText += $" You didn't include any activities."; 
+            } 
+            else 
+            {
+                responseText += " You said the following activities contributed to your mood:";
+                foreach(var activity in activities) 
+                {
+                    responseText += $" {activity}...";
+                }
+            }
+
+            return Ok(BuildTellResponse(responseText));
         }
 
         private IActionResult NavigiationIntent(Session session, int moveBy)
@@ -246,7 +285,8 @@ namespace IsThisAMood.Controllers
 
         private SkillResponse BuildTellResponse(string message)
         {
-            var speech = new PlainTextOutputSpeech(message);
+            message = "<speak>" + message + "</speak>";
+            var speech = new SsmlOutputSpeech(message);
             var skillResponse = ResponseBuilder.Tell(speech);
             return skillResponse;
         }

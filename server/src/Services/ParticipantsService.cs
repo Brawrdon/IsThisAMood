@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Alexa.NET.Request;
 using IsThisAMood.Models.Database;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
@@ -12,6 +14,7 @@ namespace IsThisAMood.Services
         bool AddEntry(string accessToken, Entry entry);
         bool SetAccessToken(string username, string accessToken);
         List<Entry> GetEntries(string accessToken, string mood);
+        Entry GetEntry(string accessToken, string name);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -92,8 +95,9 @@ namespace IsThisAMood.Services
 
         public List<Entry> GetEntries(string accessToken, string mood = null)
         {
-            var particpant = GetParticipantFromToken(accessToken);
-            var entries = particpant.Entries;
+            var participant = GetParticipantFromToken(accessToken);
+            
+            var entries = participant.Entries;
 
             if(mood != null)
                 entries = entries.FindAll(x => x.Mood == mood);
@@ -105,6 +109,12 @@ namespace IsThisAMood.Services
         public Participant GetParticipantFromToken(string accessToken)
         {
             return _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
+        }
+
+        public Entry GetEntry(string accessToken, string name)
+        {
+            var entries = GetEntries(accessToken);
+            return entries.Select(x => x).Where(x => x.Name == name).FirstOrDefault();
         }
     }
 }
