@@ -79,8 +79,6 @@ namespace IsThisAMood.Controllers
                     return ListEntries(skillRequest.Session.User.AccessToken, intentRequest);
                 case "ViewEntry":
                     return ViewEntry(skillRequest.Session.User.AccessToken, intentRequest);
-                case "":
-                    return DeleteEntry(skillRequest.Session.User.AccessToken, intentRequest);
                 case "AddActivity":
                     return AddActivity(skillRequest.Session, intentRequest);
                 case "AMAZON.YesIntent":
