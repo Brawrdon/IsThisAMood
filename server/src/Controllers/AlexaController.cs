@@ -74,13 +74,15 @@ namespace IsThisAMood.Controllers
             switch (intentRequest?.Intent.Name)
             {
                 case "CreateEntry":
-                    return CreateEntry(intentRequest);
+                    return CreateEntry(intentRequest);    
+                case "AddActivity":
+                    return AddActivity(skillRequest.Session, intentRequest);    
                 case "ListEntries":
                     return ListEntries(skillRequest.Session.User.AccessToken, intentRequest);
                 case "ViewEntry":
                     return ViewEntry(skillRequest.Session.User.AccessToken, intentRequest);
-                case "AddActivity":
-                    return AddActivity(skillRequest.Session, intentRequest);
+                case "DeleteEntry": 
+                    return DeleteEntry(skillRequest.Session.User.AccessToken, intentRequest);
                 case "AMAZON.YesIntent":
                     return YesIntent(skillRequest.Session);
                 case "AMAZON.NoIntent":
@@ -95,6 +97,39 @@ namespace IsThisAMood.Controllers
             }
         }
 
+        private IActionResult DeleteEntry(string accessToken, IntentRequest deleteEntryRequest)
+        {
+            accessToken = _participantsAuthenticationService.GetHashedAccessToken(accessToken);
+
+            if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("NONE"))
+            {
+                var entry = _participantsService.GetEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
+                
+                if (entry == null) 
+                    return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"] + $"{deleteEntryRequest.Intent.Slots["name"].Value}."));
+
+
+                return Ok(ResponseBuilder.DialogConfirmIntent(new PlainTextOutputSpeech(_configuration["Responses:DeleteEntryConfirmation"] + $"{deleteEntryRequest.Intent.Slots["name"].Value}?")));          
+            } 
+            else if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("CONFIRMED"))
+            {
+                var deleted = _participantsService.DeleteEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
+
+
+                string responseText;
+                
+                if(!deleted)
+                    responseText = "Hmm... I couldn't deleted that entry for some reason. Try that again.";
+                else
+                    responseText = "I've deleted that entry!";
+
+                responseText += $" {_configuration["Responses:Prompt"]}";
+
+                return Ok(BuildAskResponse(responseText));
+            } else {
+                return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
+            }
+        }
 
         private IActionResult ViewEntry(string accessToken, IntentRequest viewEntryRequest)
         {
@@ -110,6 +145,7 @@ namespace IsThisAMood.Controllers
             {
               responseText += $" You didn't include any activities."; 
             } 
+
             else 
             {
                 responseText += " You said the following activities contributed to your mood:";
@@ -119,7 +155,9 @@ namespace IsThisAMood.Controllers
                 }
             }
 
-            return Ok(BuildTellResponse(responseText));
+            responseText += " What would you like to do next?";
+
+            return Ok(BuildAskResponse(responseText));
         }
 
         private IActionResult NavigiationIntent(Session session, int moveBy)

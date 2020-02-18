@@ -15,6 +15,7 @@ namespace IsThisAMood.Services
         bool SetAccessToken(string username, string accessToken);
         List<Entry> GetEntries(string accessToken, string mood);
         Entry GetEntry(string accessToken, string name);
+        bool DeleteEntry(string accessToken, string name);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -115,6 +116,31 @@ namespace IsThisAMood.Services
         {
             var entries = GetEntries(accessToken);
             return entries.Select(x => x).Where(x => x.Name == name).FirstOrDefault();
+        }
+
+        public bool DeleteEntry(string accessToken, string name)
+        {
+            var builder = Builders<Participant>.Update;
+            var update = builder.PullFilter("Entries", Builders<Entry>.Filter.Eq("Name", name));
+
+            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
+
+             if (!updateResult.IsAcknowledged)
+            {
+                _logger.LogError("Attempting to remove entry {EntryName} was not acknowledged", name);
+                return false;
+            }
+
+            if (updateResult.ModifiedCount != 1)
+            {
+                _logger.LogError("Modified count when attempting to removing entry {EntryName} was {ModifiedCount}",
+                    name, updateResult.ModifiedCount);
+                return false;
+            }
+
+            _logger.LogDebug("Entry {EntryName} was removed", name);
+
+            return true;
         }
     }
 }
