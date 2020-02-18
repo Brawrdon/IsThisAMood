@@ -71,22 +71,23 @@ namespace IsThisAMood.Controllers
 
             _logger.LogDebug("Intent launched : {Intent}", intentRequest?.Intent.Name);
 
+            var accessToken = _participantsAuthenticationService.GetHashedAccessToken(skillRequest.Session.User.AccessToken);
             switch (intentRequest?.Intent.Name)
             {
                 case "CreateEntry":
-                    return CreateEntry(intentRequest);    
+                    return CreateEntry(accessToken, intentRequest);    
                 case "AddActivity":
                     return AddActivity(skillRequest.Session, intentRequest);    
                 case "ListEntries":
-                    return ListEntries(skillRequest.Session.User.AccessToken, intentRequest);
+                    return ListEntries(accessToken, intentRequest);
                 case "ViewEntry":
-                    return ViewEntry(skillRequest.Session.User.AccessToken, intentRequest);
+                    return ViewEntry(accessToken, intentRequest);
                 case "DeleteEntry": 
-                    return DeleteEntry(skillRequest.Session.User.AccessToken, intentRequest);
+                    return DeleteEntry(accessToken, intentRequest);
                 case "AMAZON.YesIntent":
                     return YesIntent(skillRequest.Session);
                 case "AMAZON.NoIntent":
-                    return NoIntent(skillRequest.Session);
+                    return NoIntent(accessToken, skillRequest.Session);
                 case "AMAZON.NextIntent":
                     return NavigiationIntent(skillRequest.Session, 1);
                 case "AMAZON.PreviousIntent":
@@ -99,8 +100,6 @@ namespace IsThisAMood.Controllers
 
         private IActionResult DeleteEntry(string accessToken, IntentRequest deleteEntryRequest)
         {
-            accessToken = _participantsAuthenticationService.GetHashedAccessToken(accessToken);
-
             if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("NONE"))
             {
                 var entry = _participantsService.GetEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
@@ -114,7 +113,6 @@ namespace IsThisAMood.Controllers
             else if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("CONFIRMED"))
             {
                 var deleted = _participantsService.DeleteEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
-
 
                 string responseText;
                 
@@ -133,7 +131,7 @@ namespace IsThisAMood.Controllers
 
         private IActionResult ViewEntry(string accessToken, IntentRequest viewEntryRequest)
         {
-            var entry = _participantsService.GetEntry(_participantsAuthenticationService.GetHashedAccessToken(accessToken), viewEntryRequest.Intent.Slots["name"].Value);
+            var entry = _participantsService.GetEntry(accessToken, viewEntryRequest.Intent.Slots["name"].Value);
             
             if (entry == null) 
                 return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"]));
@@ -205,7 +203,7 @@ namespace IsThisAMood.Controllers
         }
 
 
-        private IActionResult NoIntent(Session session)
+        private IActionResult NoIntent(string accessToken, Session session)
         {
             var activitiesArray = (JArray) session.Attributes["activities"];
             var entry = new Entry
@@ -217,8 +215,7 @@ namespace IsThisAMood.Controllers
                 Activities = activitiesArray.ToObject<List<string>>()
             };
 
-            var responseText = !_participantsService.AddEntry(
-                _participantsAuthenticationService.GetHashedAccessToken(session.User.AccessToken), entry)
+            var responseText = !_participantsService.AddEntry(accessToken, entry)
                 ? _configuration["Responses:EntryAddFailure"]
                 : _configuration["Responses:EntryAdded"];
 
@@ -230,20 +227,28 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
         }
 
-        private IActionResult CreateEntry(IntentRequest createEntryRequest)
+        private IActionResult CreateEntry(string accessToken, IntentRequest createEntryRequest)
         {
-            var responseText = _configuration["Responses:FirstActivityRequest"];
-            var skillResponse = BuildAskResponse(responseText);
-            skillResponse.SessionAttributes = new Dictionary<string, object>
+            if(_participantsService.GetEntry(accessToken, createEntryRequest.Intent.Slots["name"].Value) != null) 
             {
-                {"currentIntent", "CreateEntry"},
-                {"name", createEntryRequest.Intent.Slots["name"].Value},
-                {"mood", createEntryRequest.Intent.Slots["mood"].Value},
-                {"rating", createEntryRequest.Intent.Slots["rating"].Value},
-                {"activities", new JArray()}
-            };
+                return Ok(ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech($"You already have an entry called {createEntryRequest.Intent.Slots["name"].Value}, try giving me another one."), "name"));
+            } 
+            else 
+            {
 
-            return Ok(skillResponse);
+                var responseText = _configuration["Responses:FirstActivityRequest"];
+                var skillResponse = BuildAskResponse(responseText);
+                skillResponse.SessionAttributes = new Dictionary<string, object>
+                {
+                    {"currentIntent", "CreateEntry"},
+                    {"name", createEntryRequest.Intent.Slots["name"].Value},
+                    {"mood", createEntryRequest.Intent.Slots["mood"].Value},
+                    {"rating", createEntryRequest.Intent.Slots["rating"].Value},
+                    {"activities", new JArray()}
+                };
+
+                return Ok(skillResponse);
+            }
         }
 
         private IActionResult ListEntries(string accessToken, IntentRequest intentRequest)
@@ -253,7 +258,7 @@ namespace IsThisAMood.Controllers
             if (intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
                 mood = slot.Value;
 
-            var entries = _participantsService.GetEntries(_participantsAuthenticationService.GetHashedAccessToken(accessToken), mood);
+            var entries = _participantsService.GetEntries(accessToken, mood);
             SkillResponse skillResponse = GetEntriesFromPage(entries);
 
             return Ok(skillResponse);
