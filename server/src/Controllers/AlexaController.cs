@@ -75,15 +75,15 @@ namespace IsThisAMood.Controllers
             switch (intentRequest?.Intent.Name)
             {
                 case "CreateEntry":
-                    return CreateEntry(accessToken, intentRequest);    
-                case "AddActivity":
-                    return AddActivity(skillRequest.Session, intentRequest);    
+                    return CreateEntry(accessToken, skillRequest.Session, intentRequest);    
+                case "AddActivityToEntry":
+                    return AddActivityToEntry(skillRequest.Session, intentRequest);    
                 case "ListEntries":
-                    return ListEntries(accessToken, intentRequest);
+                    return ListEntries(accessToken, skillRequest.Session, intentRequest);
                 case "ViewEntry":
-                    return ViewEntry(accessToken, intentRequest);
+                    return ViewEntry(accessToken, skillRequest.Session, intentRequest);
                 case "DeleteEntry": 
-                    return DeleteEntry(accessToken, intentRequest);
+                    return DeleteEntry(accessToken, skillRequest.Session, intentRequest);
                 case "AMAZON.YesIntent":
                     return YesIntent(skillRequest.Session);
                 case "AMAZON.NoIntent":
@@ -98,21 +98,71 @@ namespace IsThisAMood.Controllers
             }
         }
 
-        private IActionResult DeleteEntry(string accessToken, IntentRequest deleteEntryRequest)
+        private IActionResult CreateEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
-            if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("NONE"))
+            
+            var name = intentRequest.Intent.Slots["name"].Value.ToLower();
+            if(CheckEntryExists(accessToken, name))
             {
-                var entry = _participantsService.GetEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
+                return Ok(BuildElicitSlot(string.Format(_configuration["Responses:CreateEntryAlreadyExists"], name), "name"));
+            }  
+            else 
+            {
+                var mood = intentRequest.Intent.Slots["mood"].Value;
+                session.Attributes = new Dictionary<string, object>
+                {
+                    {"lastIntent", "CreateEntry"},
+                    {"mood", mood},
+                    {"rating", intentRequest.Intent.Slots["rating"].Value},
+                    {"name", name},
+                    {"activities", new JArray()}
+                };
                 
-                if (entry == null) 
-                    return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"] + $"{deleteEntryRequest.Intent.Slots["name"].Value}."));
+                var responseText = string.Format(_configuration["Responses:CreateEntry"], mood);
+                var skillResponse = BuildAskResponse(responseText, session: session);
 
+                return Ok(skillResponse);
+            }
+        }
+        private IActionResult AddActivityToEntry(Session session, IntentRequest intentRequest)
+        {
+            if (session.Attributes == null)
+                return UnknownRequest();
 
-                return Ok(ResponseBuilder.DialogConfirmIntent(new PlainTextOutputSpeech(_configuration["Responses:DeleteEntryConfirmation"] + $"{deleteEntryRequest.Intent.Slots["name"].Value}?")));          
-            } 
-            else if(deleteEntryRequest.Intent.ConfirmationStatus.Equals("CONFIRMED"))
+            if ((string) session.Attributes["lastIntent"] == "CreateEntry" || (string) session.Attributes["lastIntent"] == "AddActivityToEntry") 
             {
-                var deleted = _participantsService.DeleteEntry(accessToken, deleteEntryRequest.Intent.Slots["name"].Value);
+                var activities = (JArray) session.Attributes["activities"];
+                activities.Add(intentRequest.Intent.Slots["activity"].Value);
+
+                session.Attributes["lastIntent"] = "AddActivityToEntry";
+
+                return Ok(BuildAskResponse(_configuration["Responses:AddActivityToEntry"], session: session));
+            }
+            
+            return UnknownRequest();
+           
+        }
+        private IActionResult DeleteEntry(string accessToken, Session session, IntentRequest intentRequest)
+        {
+            session.Attributes = new Dictionary<string, object>
+            {
+                {"lastIntent", "DeleteEntry"},
+            };
+
+            var name =  intentRequest.Intent.Slots["name"].Value.ToLower();
+
+            if(intentRequest.Intent.ConfirmationStatus.Equals("NONE"))
+            {
+                var entry = _participantsService.GetEntry(accessToken, name);
+                
+                if (entry == null)
+                    return Ok(BuildTellResponse(string.Format(_configuration["Responses:EntryNotFound"], name), session));
+
+                return Ok(ResponseBuilder.DialogConfirmIntent(new PlainTextOutputSpeech(string.Format(_configuration["Responses:DeleteEntryConfirmation"], name))));          
+            } 
+            else if(intentRequest.Intent.ConfirmationStatus.Equals("CONFIRMED"))
+            {
+                var deleted = _participantsService.DeleteEntry(accessToken, name);
 
                 string responseText;
                 
@@ -123,18 +173,23 @@ namespace IsThisAMood.Controllers
 
                 responseText += $" {_configuration["Responses:Prompt"]}";
 
-                return Ok(BuildAskResponse(responseText));
+                return Ok(BuildAskResponse(responseText, session: session));
             } else {
-                return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
+                return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}", session: session));
             }
         }
 
-        private IActionResult ViewEntry(string accessToken, IntentRequest viewEntryRequest)
+        private IActionResult ViewEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
-            var entry = _participantsService.GetEntry(accessToken, viewEntryRequest.Intent.Slots["name"].Value);
+            session.Attributes = new Dictionary<string, object>
+            {
+                {"lastIntent", "ViewEntry"},
+            };
+                
+            var entry = _participantsService.GetEntry(accessToken, intentRequest.Intent.Slots["name"].Value.ToLower());
             
             if (entry == null) 
-                return Ok(BuildTellResponse(_configuration["Responses:EntryNotFound"]));
+                return Ok(BuildTellResponse(string.Format(_configuration["Responses:EntryNotFound"], intentRequest.Intent.Slots["name"].Value.ToLower()), session));
 
             var responseText = $"Here's the entry for {entry.Name}. You felt {entry.Mood} and gave it a rating of {entry.Rating}.";
 
@@ -143,7 +198,6 @@ namespace IsThisAMood.Controllers
             {
               responseText += $" You didn't include any activities."; 
             } 
-
             else 
             {
                 responseText += " You said the following activities contributed to your mood:";
@@ -153,9 +207,9 @@ namespace IsThisAMood.Controllers
                 }
             }
 
-            responseText += " What would you like to do next?";
+            responseText += $" {_configuration["Responses:Prompt"]}";
 
-            return Ok(BuildAskResponse(responseText));
+            return Ok(BuildAskResponse(responseText, session: session));
         }
 
         private IActionResult NavigiationIntent(Session session, int moveBy)
@@ -163,7 +217,7 @@ namespace IsThisAMood.Controllers
             if (session.Attributes == null)
                 return UnknownRequest();
 
-            if (!session.Attributes.TryGetValue("currentIntent", out var currentIntentObject))
+            if (!session.Attributes.TryGetValue("lastIntent", out var currentIntentObject))
                 return UnknownRequest();
 
             if(!session.Attributes.TryGetValue("page", out var pageObject))
@@ -180,7 +234,7 @@ namespace IsThisAMood.Controllers
 
             return currentIntent switch
             {
-                "ListEntries" =>Ok(GetEntriesFromPage(entries, page + moveBy)),
+                "ListEntries" =>Ok(GetEntriesFromPage(session, entries, page + moveBy)),
                 _ => UnknownRequest()
             };
         }
@@ -190,21 +244,44 @@ namespace IsThisAMood.Controllers
             if (session.Attributes == null)
                 return UnknownRequest();
 
-            if (!session.Attributes.TryGetValue("currentIntent", out var attributeObject))
+            if (!session.Attributes.TryGetValue("lastIntent", out var attributeObject))
                 return UnknownRequest();
 
             var currentIntent = (string) attributeObject;
 
-            return currentIntent switch
+            switch (currentIntent) 
             {
-                "CreateEntry" => Ok(ResponseBuilder.DialogDelegate(session, new Intent {Name = "AddActivity"})),
-                _ => UnknownRequest()
-            };
-        }
+                case "CreateEntry":
+                case "AddActivityToEntry":
+                    return Ok(ResponseBuilder.DialogDelegate(session, new Intent {Name = "AddActivityToEntry"}));
+                default:
+                    return Ok(UnknownRequest());
 
+            }
+        }
 
         private IActionResult NoIntent(string accessToken, Session session)
         {
+            if (session.Attributes == null)
+                return UnknownRequest();
+
+            if (!session.Attributes.TryGetValue("lastIntent", out var attributeObject))
+                return UnknownRequest();
+
+            var currentIntent = (string) attributeObject;
+
+            switch (currentIntent) 
+            {
+                case "CreateEntry":
+                case "AddActivityToEntry":
+                    return AddEntryToDatabase(accessToken, session);
+                default:
+                     return UnknownRequest();
+            }
+            
+        }
+
+        private IActionResult AddEntryToDatabase(string accessToken, Session session) {
             var activitiesArray = (JArray) session.Attributes["activities"];
             var entry = new Entry
             {
@@ -219,39 +296,27 @@ namespace IsThisAMood.Controllers
                 ? _configuration["Responses:EntryAddFailure"]
                 : _configuration["Responses:EntryAdded"];
 
-            return Ok(BuildTellResponse(responseText));
+            responseText += $" {_configuration["Responses:Prompt"]}";
+
+            return Ok(BuildAskResponse(responseText));
         }
 
+        private bool CheckEntryExists(string accessToken, string name) {
+            if(_participantsService.GetEntry(accessToken, name) != null) 
+                return true;
+
+            return false;
+        }
+
+    
         private IActionResult UnknownRequest()
         {
             return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
         }
 
-        private IActionResult CreateEntry(string accessToken, IntentRequest createEntryRequest)
-        {
-            if(_participantsService.GetEntry(accessToken, createEntryRequest.Intent.Slots["name"].Value) != null) 
-            {
-                return Ok(ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech($"You already have an entry called {createEntryRequest.Intent.Slots["name"].Value}, try giving me another one."), "name"));
-            } 
-            else 
-            {
+        
 
-                var responseText = _configuration["Responses:FirstActivityRequest"];
-                var skillResponse = BuildAskResponse(responseText);
-                skillResponse.SessionAttributes = new Dictionary<string, object>
-                {
-                    {"currentIntent", "CreateEntry"},
-                    {"name", createEntryRequest.Intent.Slots["name"].Value},
-                    {"mood", createEntryRequest.Intent.Slots["mood"].Value},
-                    {"rating", createEntryRequest.Intent.Slots["rating"].Value},
-                    {"activities", new JArray()}
-                };
-
-                return Ok(skillResponse);
-            }
-        }
-
-        private IActionResult ListEntries(string accessToken, IntentRequest intentRequest)
+        private IActionResult ListEntries(string accessToken, Session session, IntentRequest intentRequest)
         {
             string mood = null;
 
@@ -259,20 +324,24 @@ namespace IsThisAMood.Controllers
                 mood = slot.Value;
 
             var entries = _participantsService.GetEntries(accessToken, mood);
-            SkillResponse skillResponse = GetEntriesFromPage(entries);
+            SkillResponse skillResponse = GetEntriesFromPage(session, entries);
 
             return Ok(skillResponse);
         }
 
-        private SkillResponse GetEntriesFromPage(List<Entry> entries, long page = 1)
+        private SkillResponse GetEntriesFromPage(Session session, List<Entry> entries, long page = 1)
         {
+            session.Attributes = new Dictionary<string, object> {
+                {"lastIntent", "ListEntries"},
+            };
+
             if(page < 1)
                 page = 1;
 
             var lastPage = Math.Ceiling((float) entries.Count / 3);
             
             if(page > lastPage)
-                return BuildAskResponse(_configuration["Responses:ListEntriesEmpty"]);
+                return BuildAskResponse(_configuration["Responses:ListEntriesEmpty"], session: session);
 
             var index = (int) (3 * page) - 3;
             var count = 3;
@@ -291,36 +360,26 @@ namespace IsThisAMood.Controllers
                 entriesRespose += $"<say-as interpret-as=\"ordinal\">{entryNumber}</say-as> entry: {entry.Name}... ";
                 entryNumber++;
             }
+        
+            session.Attributes.Add("entries", entries);
+            session.Attributes.Add("page", page);
             
-            var skillResponse = BuildAskResponse($"Page {page} out of {lastPage}. " + entriesRespose + _configuration["Responses:ListEntriesEnd"]);
+            var skillResponse = BuildAskResponse($"Page {page} out of {lastPage}. {entriesRespose} {_configuration["Responses:Prompt"]}", session: session);
 
-            skillResponse.SessionAttributes = new Dictionary<string, object> {
-                 {"currentIntent", "ListEntries"},
-                 {"entries", entries},
-                 {"page", page}
-            };
             return skillResponse;
         }
 
-        private IActionResult AddActivity(Session session, IntentRequest intentRequest)
-        {
-            if (session.Attributes == null)
-                return UnknownRequest();
-
-            if ((string) session.Attributes["currentIntent"] != "CreateEntry")
-                return UnknownRequest();
-
-            var activities = (JArray) session.Attributes["activities"];
-            activities.Add(intentRequest.Intent.Slots["activity"].Value);
-
-            return Ok(BuildAskResponse(_configuration["Responses:ActivityRequest"], session: session));
+        private SkillResponse BuildElicitSlot(string message, string slot, Intent intent = null){
+              return ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech(message), slot, intent);
         }
 
-        private SkillResponse BuildTellResponse(string message)
+        
+
+        private SkillResponse BuildTellResponse(string message, Session session = null)
         {
             message = "<speak>" + message + "</speak>";
             var speech = new SsmlOutputSpeech(message);
-            var skillResponse = ResponseBuilder.Tell(speech);
+            var skillResponse = ResponseBuilder.Tell(speech, session);
             return skillResponse;
         }
 
