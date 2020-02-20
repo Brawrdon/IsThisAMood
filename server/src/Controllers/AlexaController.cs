@@ -133,10 +133,8 @@ namespace IsThisAMood.Controllers
         private IActionResult SetPin()
         {
             var pin = _intentRequest.Intent.Slots["pin"].Value;
-            _logger.LogDebug(_participantsAuthenticationService.GetHashedString(pin));
             if (!_participantsService.CheckPin(_accessToken, _participantsAuthenticationService.GetHashedString(pin)))
                 return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", new Intent {Name = "SetPin"}));
-
 
             var lastIntent = (string) _skillRequest.Session.Attributes["lastIntent"];
             var intentJObject = (JObject) _skillRequest.Session.Attributes["intent"];

@@ -116,6 +116,9 @@ namespace IsThisAMood.Services
             
             var entries = participant.Entries;
 
+            if (entries.Count == 0)
+                return entries;
+
             if(mood != null)
                 entries = entries.FindAll(x => x.Mood == mood);
 
@@ -141,7 +144,7 @@ namespace IsThisAMood.Services
         public Entry GetEntry(string accessToken, string password, string name)
         {
             var entries = GetEntries(accessToken, password);
-            return DecryptEntry(entries.Select(x => x).FirstOrDefault(x => x.Name == name), password);
+            return entries.Select(x => x).FirstOrDefault(x => x.Name == name);
         }
 
         public bool DeleteEntry(string accessToken, string name)
