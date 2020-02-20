@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,13 +15,13 @@ namespace IsThisAMood.Services
         public string Encrypt(string plainText, string key)
         {
             byte[] encrypted;
-            byte[] hashedKey;
             var iv = new byte[16];
             
             // Create an Aes object
             // with the specified key and IV.
             using (var aesAlg = Aes.Create())
             {
+                byte[] hashedKey;
                 using(var algorithm = SHA256.Create())
                      hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
                 
@@ -55,7 +54,6 @@ namespace IsThisAMood.Services
             // Declare the string used to hold
             // the decrypted text.
             var cipherTextBytes = Encoding.UTF8.GetBytes(cipherText);
-            byte[] hashedKey;
             string plaintext = null;
             byte[] iv = new byte[16];
 
@@ -63,6 +61,7 @@ namespace IsThisAMood.Services
             // with the specified key and IV.
             using (var aesAlg = Aes.Create())
             {
+                byte[] hashedKey;
                 using(var algorithm = SHA256.Create()) 
                      hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
 
