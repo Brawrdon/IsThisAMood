@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Alexa.NET.Request;
@@ -16,6 +17,7 @@ namespace IsThisAMood.Services
         List<Entry> GetEntries(string accessToken, string mood);
         Entry GetEntry(string accessToken, string name);
         bool DeleteEntry(string accessToken, string name);
+        bool CheckPin(string accessToken, string pin);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -107,15 +109,19 @@ namespace IsThisAMood.Services
             return entries;
         }
 
-        public Participant GetParticipantFromToken(string accessToken)
+        private Participant GetParticipantFromToken(string accessToken)
         {
-            return _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
+            var participant = _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
+            if (participant == null)
+                throw new Exception("Participant doesn't exist");
+
+            return participant;
         }
 
         public Entry GetEntry(string accessToken, string name)
         {
             var entries = GetEntries(accessToken);
-            return entries.Select(x => x).Where(x => x.Name == name).FirstOrDefault();
+            return entries.Select(x => x).FirstOrDefault(x => x.Name == name);
         }
 
         public bool DeleteEntry(string accessToken, string name)
@@ -141,6 +147,13 @@ namespace IsThisAMood.Services
             _logger.LogDebug("Entry {EntryName} was removed", name);
 
             return true;
+        }
+
+        public bool CheckPin(string accessToken, string pin)
+        {
+            var participant = GetParticipantFromToken(accessToken);
+
+            return participant.AlexaPin == pin;
         }
     }
 }

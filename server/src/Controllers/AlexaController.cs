@@ -46,8 +46,8 @@ namespace IsThisAMood.Controllers
             }
 
             _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
-
-
+            
+           
             switch (skillRequest.Request.Type)
             {
                 case "LaunchRequest":
@@ -55,14 +55,14 @@ namespace IsThisAMood.Controllers
                 case "IntentRequest":
                     return IntentRequest(skillRequest);
                 default:
-                    return UnknownRequest();
+                    return UnknownRequest(skillRequest.Session);
             }
         }
-
+        
         private IActionResult LaunchRequest()
         {
             var responseText = _configuration["Responses:LaunchRequest"];
-            return Ok(BuildAskResponse(responseText));
+            return Ok(BuildAskResponse(responseText, null));
         }
 
         private IActionResult IntentRequest(SkillRequest skillRequest)
@@ -71,9 +71,17 @@ namespace IsThisAMood.Controllers
 
             _logger.LogDebug("Intent launched : {Intent}", intentRequest?.Intent.Name);
 
-            var accessToken = _participantsAuthenticationService.GetHashedAccessToken(skillRequest.Session.User.AccessToken);
+            var accessToken = _participantsAuthenticationService.GetHashedString(skillRequest.Session.User.AccessToken);
+            
+            if (!skillRequest.Session.Attributes.TryGetValue("pin", out var pin))
+                return Ok(BuildElicitSlot(_configuration["Responses:SetPin"], "pin", new Intent { Name = "SetPin"}));
+
+            skillRequest.Session.Attributes["lastIntent"] = intentRequest?.Intent.Name;
+  
             switch (intentRequest?.Intent.Name)
             {
+                case "SetPin":
+                    return SetPin(accessToken, skillRequest.Session, intentRequest);
                 case "CreateEntry":
                     return CreateEntry(accessToken, skillRequest.Session, intentRequest);    
                 case "AddActivityToEntry":
@@ -89,14 +97,26 @@ namespace IsThisAMood.Controllers
                 case "AMAZON.NoIntent":
                     return NoIntent(accessToken, skillRequest.Session);
                 case "AMAZON.NextIntent":
-                    return NavigiationIntent(skillRequest.Session, 1);
+                    return NavigationIntent(skillRequest.Session, 1);
                 case "AMAZON.PreviousIntent":
-                    return NavigiationIntent(skillRequest.Session, -1);
+                    return NavigationIntent(skillRequest.Session, -1);
                 default:
                     _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
-                    return UnknownRequest();
+                    return UnknownRequest(skillRequest.Session);
             }
         }
+
+        private IActionResult SetPin(string accessToken, Session session, IntentRequest intentRequest)
+        {
+            var pin = intentRequest.Intent.Slots["pin"].Value;
+            if (!_participantsService.CheckPin(accessToken, _participantsAuthenticationService.GetHashedString(pin)))
+                return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", sessionAttributes: session.Attributes));
+
+            var lastIntent = (string) session.Attributes["lastIntent"];
+            session.Attributes["pin"] = pin;
+            return Ok(lastIntent == "SetPin" ? BuildAskResponse(_configuration["Responses:Prompt"], session) : ResponseBuilder.DialogDelegate(session, new Intent {Name = lastIntent}));
+        }
+
 
         private IActionResult CreateEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
@@ -109,17 +129,13 @@ namespace IsThisAMood.Controllers
             else 
             {
                 var mood = intentRequest.Intent.Slots["mood"].Value;
-                session.Attributes = new Dictionary<string, object>
-                {
-                    {"lastIntent", "CreateEntry"},
-                    {"mood", mood},
-                    {"rating", intentRequest.Intent.Slots["rating"].Value},
-                    {"name", name},
-                    {"activities", new JArray()}
-                };
-                
+                session.Attributes["mood"] = mood;
+                session.Attributes["rating"] = intentRequest.Intent.Slots["rating"].Value;
+                session.Attributes["name"] = name;
+                session.Attributes["activities"] = new JArray();
+
                 var responseText = string.Format(_configuration["Responses:CreateEntry"], mood);
-                var skillResponse = BuildAskResponse(responseText, session: session);
+                var skillResponse = BuildAskResponse(responseText, session);
 
                 return Ok(skillResponse);
             }
@@ -127,28 +143,21 @@ namespace IsThisAMood.Controllers
         private IActionResult AddActivityToEntry(Session session, IntentRequest intentRequest)
         {
             if (session.Attributes == null)
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if ((string) session.Attributes["lastIntent"] == "CreateEntry" || (string) session.Attributes["lastIntent"] == "AddActivityToEntry") 
             {
                 var activities = (JArray) session.Attributes["activities"];
                 activities.Add(intentRequest.Intent.Slots["activity"].Value);
-
-                session.Attributes["lastIntent"] = "AddActivityToEntry";
-
-                return Ok(BuildAskResponse(_configuration["Responses:AddActivityToEntry"], session: session));
+                
+                return Ok(BuildAskResponse(_configuration["Responses:AddActivityToEntry"], session));
             }
             
-            return UnknownRequest();
+            return UnknownRequest(session);
            
         }
         private IActionResult DeleteEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
-            session.Attributes = new Dictionary<string, object>
-            {
-                {"lastIntent", "DeleteEntry"},
-            };
-
             var name =  intentRequest.Intent.Slots["name"].Value.ToLower();
 
             if(intentRequest.Intent.ConfirmationStatus.Equals("NONE"))
@@ -156,7 +165,7 @@ namespace IsThisAMood.Controllers
                 var entry = _participantsService.GetEntry(accessToken, name);
                 
                 if (entry == null)
-                    return Ok(BuildTellResponse(string.Format(_configuration["Responses:EntryNotFound"], name), session));
+                    return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], name), session));
 
                 return Ok(ResponseBuilder.DialogConfirmIntent(new PlainTextOutputSpeech(string.Format(_configuration["Responses:DeleteEntryConfirmation"], name))));          
             } 
@@ -173,7 +182,7 @@ namespace IsThisAMood.Controllers
 
                 responseText += $" {_configuration["Responses:Prompt"]}";
 
-                return Ok(BuildAskResponse(responseText, session: session));
+                return Ok(BuildAskResponse(responseText, session));
             } else {
                 return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}", session: session));
             }
@@ -181,15 +190,10 @@ namespace IsThisAMood.Controllers
 
         private IActionResult ViewEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
-            session.Attributes = new Dictionary<string, object>
-            {
-                {"lastIntent", "ViewEntry"},
-            };
-                
             var entry = _participantsService.GetEntry(accessToken, intentRequest.Intent.Slots["name"].Value.ToLower());
             
             if (entry == null) 
-                return Ok(BuildTellResponse(string.Format(_configuration["Responses:EntryNotFound"], intentRequest.Intent.Slots["name"].Value.ToLower()), session));
+                return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], intentRequest.Intent.Slots["name"].Value.ToLower()), session));
 
             var responseText = $"Here's the entry for {entry.Name}. You felt {entry.Mood} and gave it a rating of {entry.Rating}.";
 
@@ -209,22 +213,22 @@ namespace IsThisAMood.Controllers
 
             responseText += $" {_configuration["Responses:Prompt"]}";
 
-            return Ok(BuildAskResponse(responseText, session: session));
+            return Ok(BuildAskResponse(responseText, session));
         }
 
-        private IActionResult NavigiationIntent(Session session, int moveBy)
+        private IActionResult NavigationIntent(Session session, int moveBy)
         {
             if (session.Attributes == null)
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if (!session.Attributes.TryGetValue("lastIntent", out var currentIntentObject))
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if(!session.Attributes.TryGetValue("page", out var pageObject))
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if(!session.Attributes.TryGetValue("entries", out var entriesObject))
-                return UnknownRequest();
+                return UnknownRequest(session);
 
 
             var currentIntent = (string) currentIntentObject;
@@ -235,17 +239,17 @@ namespace IsThisAMood.Controllers
             return currentIntent switch
             {
                 "ListEntries" =>Ok(GetEntriesFromPage(session, entries, page + moveBy)),
-                _ => UnknownRequest()
+                _ => UnknownRequest(session)
             };
         }
 
         private IActionResult YesIntent(Session session)
         {
             if (session.Attributes == null)
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if (!session.Attributes.TryGetValue("lastIntent", out var attributeObject))
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             var currentIntent = (string) attributeObject;
 
@@ -255,7 +259,7 @@ namespace IsThisAMood.Controllers
                 case "AddActivityToEntry":
                     return Ok(ResponseBuilder.DialogDelegate(session, new Intent {Name = "AddActivityToEntry"}));
                 default:
-                    return Ok(UnknownRequest());
+                    return Ok(UnknownRequest(session));
 
             }
         }
@@ -263,10 +267,10 @@ namespace IsThisAMood.Controllers
         private IActionResult NoIntent(string accessToken, Session session)
         {
             if (session.Attributes == null)
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             if (!session.Attributes.TryGetValue("lastIntent", out var attributeObject))
-                return UnknownRequest();
+                return UnknownRequest(session);
 
             var currentIntent = (string) attributeObject;
 
@@ -276,7 +280,7 @@ namespace IsThisAMood.Controllers
                 case "AddActivityToEntry":
                     return AddEntryToDatabase(accessToken, session);
                 default:
-                     return UnknownRequest();
+                     return UnknownRequest(session);
             }
             
         }
@@ -297,8 +301,14 @@ namespace IsThisAMood.Controllers
                 : _configuration["Responses:EntryAdded"];
 
             responseText += $" {_configuration["Responses:Prompt"]}";
+            
+            session.Attributes = new Dictionary<string, object>
+            {
+                {"pin", session.Attributes["pin"]},
+                {"lastIntent", session.Attributes["lastIntent"]}
+            };
 
-            return Ok(BuildAskResponse(responseText));
+            return Ok(BuildAskResponse(responseText, session));
         }
 
         private bool CheckEntryExists(string accessToken, string name) {
@@ -309,9 +319,8 @@ namespace IsThisAMood.Controllers
         }
 
     
-        private IActionResult UnknownRequest()
-        {
-            return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
+        private IActionResult UnknownRequest(Session session){
+            return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"], session));
         }
 
         
@@ -331,10 +340,6 @@ namespace IsThisAMood.Controllers
 
         private SkillResponse GetEntriesFromPage(Session session, List<Entry> entries, long page = 1)
         {
-            session.Attributes = new Dictionary<string, object> {
-                {"lastIntent", "ListEntries"},
-            };
-
             if(page < 1)
                 page = 1;
 
@@ -350,48 +355,40 @@ namespace IsThisAMood.Controllers
             if(entriesInPage < count)
                 count = entriesInPage;  
                 
-            var entriesRespose = "";
+            var entriesResponse = "";
             
             var latestEntries = entries.GetRange(index, count);
 
             var entryNumber = 1;
             foreach (var entry in latestEntries)
             {
-                entriesRespose += $"<say-as interpret-as=\"ordinal\">{entryNumber}</say-as> entry: {entry.Name}... ";
+                entriesResponse += $"<say-as interpret-as=\"ordinal\">{entryNumber}</say-as> entry: {entry.Name}... ";
                 entryNumber++;
             }
         
-            session.Attributes.Add("entries", entries);
-            session.Attributes.Add("page", page);
+            session.Attributes["entries"] = entries;
+            session.Attributes["page"] = page;
             
-            var skillResponse = BuildAskResponse($"Page {page} out of {lastPage}. {entriesRespose} {_configuration["Responses:Prompt"]}", session: session);
+            var skillResponse = BuildAskResponse($"Page {page} out of {lastPage}. {entriesResponse} {_configuration["Responses:Prompt"]}", session: session);
 
             return skillResponse;
         }
 
-        private SkillResponse BuildElicitSlot(string message, string slot, Intent intent = null){
-              return ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech(message), slot, intent);
-        }
+        private SkillResponse BuildElicitSlot(string message, string slot, Intent intent = null, Dictionary<string, object> sessionAttributes = null){
+              var skillResponse = ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech(message), slot, intent);
+              
+              if (sessionAttributes != null)
+                  skillResponse.SessionAttributes = sessionAttributes;
 
+              return skillResponse;
+        }
         
-
-        private SkillResponse BuildTellResponse(string message, Session session = null)
-        {
-            message = "<speak>" + message + "</speak>";
-            var speech = new SsmlOutputSpeech(message);
-            var skillResponse = ResponseBuilder.Tell(speech, session);
-            return skillResponse;
-        }
-
-        private SkillResponse BuildAskResponse(string message, string repromptMessage = null, Session session = null)
+        private SkillResponse BuildAskResponse(string message, Session session)
         {
             message = "<speak>" + message + "</speak>";
 
-            if (repromptMessage == null)
-                repromptMessage = message;
-
             var speech = new SsmlOutputSpeech(message);
-            var repromptSpeech = new SsmlOutputSpeech(repromptMessage);
+            var repromptSpeech = new SsmlOutputSpeech(message);
             var reprompt = new Reprompt {OutputSpeech = repromptSpeech};
 
             var skillResponse = ResponseBuilder.Ask(speech, reprompt, session);
