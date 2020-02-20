@@ -68,59 +68,93 @@ namespace IsThisAMood.Controllers
         private IActionResult IntentRequest(SkillRequest skillRequest)
         {
             var intentRequest = skillRequest.Request as IntentRequest;
+            var accessToken = _participantsAuthenticationService.GetHashedString(skillRequest.Session.User.AccessToken);
+        
+            if (skillRequest.Session.Attributes == null)
+                skillRequest.Session.Attributes = new Dictionary<string, object>();
 
+            if(!skillRequest.Session.Attributes.TryGetValue("lastIntent", out var _))
+                skillRequest.Session.Attributes["lastIntent"] = intentRequest?.Intent.Name;
+
+            switch (intentRequest?.Intent.Name) 
+            {
+                case "AMAZON.StopIntent":
+                case "SetPin":
+                    break;
+                default:
+                    if(!skillRequest.Session.Attributes.TryGetValue("pin", out var _)) {
+                        skillRequest.Session.Attributes["intent"] = intentRequest;
+                        return Ok(BuildElicitSlot(_configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin"}, skillRequest.Session.Attributes));
+                    }
+                    break;
+            }
+
+            return RunIntentRequest(accessToken, skillRequest.Session, intentRequest);
+        }
+
+        private IActionResult RunIntentRequest(string accessToken, Session session, IntentRequest intentRequest) {
             _logger.LogDebug("Intent launched : {Intent}", intentRequest?.Intent.Name);
 
-            var accessToken = _participantsAuthenticationService.GetHashedString(skillRequest.Session.User.AccessToken);
-            
-            if (!skillRequest.Session.Attributes.TryGetValue("pin", out var pin))
-                return Ok(BuildElicitSlot(_configuration["Responses:SetPin"], "pin", new Intent { Name = "SetPin"}));
-
-            skillRequest.Session.Attributes["lastIntent"] = intentRequest?.Intent.Name;
-  
             switch (intentRequest?.Intent.Name)
             {
                 case "SetPin":
-                    return SetPin(accessToken, skillRequest.Session, intentRequest);
+                    return SetPin(accessToken, session, intentRequest);
                 case "CreateEntry":
-                    return CreateEntry(accessToken, skillRequest.Session, intentRequest);    
+                    return CreateEntry(accessToken, session, intentRequest);    
                 case "AddActivityToEntry":
-                    return AddActivityToEntry(skillRequest.Session, intentRequest);    
+                    return AddActivityToEntry(session, intentRequest);    
                 case "ListEntries":
-                    return ListEntries(accessToken, skillRequest.Session, intentRequest);
+                    return ListEntries(accessToken, session, intentRequest);
                 case "ViewEntry":
-                    return ViewEntry(accessToken, skillRequest.Session, intentRequest);
+                    return ViewEntry(accessToken, session, intentRequest);
                 case "DeleteEntry": 
-                    return DeleteEntry(accessToken, skillRequest.Session, intentRequest);
+                    return DeleteEntry(accessToken, session, intentRequest);
                 case "AMAZON.YesIntent":
-                    return YesIntent(skillRequest.Session);
+                    return YesIntent(session);
                 case "AMAZON.NoIntent":
-                    return NoIntent(accessToken, skillRequest.Session);
+                    return NoIntent(accessToken, session);
                 case "AMAZON.NextIntent":
-                    return NavigationIntent(skillRequest.Session, 1);
+                    return NavigationIntent(session, 1);
                 case "AMAZON.PreviousIntent":
-                    return NavigationIntent(skillRequest.Session, -1);
+                    return NavigationIntent(session, -1);
+                case "AMAZON.StopIntent":
+                    return StopIntent();
                 default:
                     _logger.LogError("{Intent} is not a registered intent", intentRequest?.Intent.Name);
-                    return UnknownRequest(skillRequest.Session);
+                    return UnknownRequest(session);
             }
+        }
+
+        private IActionResult StopIntent()
+        {
+            return Ok(ResponseBuilder.Tell("Bye bye."));
         }
 
         private IActionResult SetPin(string accessToken, Session session, IntentRequest intentRequest)
         {
             var pin = intentRequest.Intent.Slots["pin"].Value;
+            _logger.LogDebug(_participantsAuthenticationService.GetHashedString(pin));
             if (!_participantsService.CheckPin(accessToken, _participantsAuthenticationService.GetHashedString(pin)))
-                return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", sessionAttributes: session.Attributes));
+                return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", intentRequest.Intent, session.Attributes));
+
 
             var lastIntent = (string) session.Attributes["lastIntent"];
-            session.Attributes["pin"] = pin;
-            return Ok(lastIntent == "SetPin" ? BuildAskResponse(_configuration["Responses:Prompt"], session) : ResponseBuilder.DialogDelegate(session, new Intent {Name = lastIntent}));
+            var intentJObject = (JObject) session.Attributes["intent"];
+            var intent = intentJObject.ToObject<IntentRequest>();
+            session.Attributes = new Dictionary<string, object>
+            {
+                {"pin", pin},
+                {"lastIntent", lastIntent}
+            };
+
+            return lastIntent == "SetPin" ? Ok(BuildAskResponse(_configuration["Responses:Prompt"], session)) : RunIntentRequest(accessToken, session, intent);
         }
 
 
         private IActionResult CreateEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
-            
+            session.Attributes["lastIntent"] = "CreateEntry";
+
             var name = intentRequest.Intent.Slots["name"].Value.ToLower();
             if(CheckEntryExists(accessToken, name))
             {
@@ -142,6 +176,8 @@ namespace IsThisAMood.Controllers
         }
         private IActionResult AddActivityToEntry(Session session, IntentRequest intentRequest)
         {
+            session.Attributes["lastIntent"] = "AddActivityToEntry";
+
             if (session.Attributes == null)
                 return UnknownRequest(session);
 
@@ -158,6 +194,8 @@ namespace IsThisAMood.Controllers
         }
         private IActionResult DeleteEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
+            session.Attributes["lastIntent"] = "DeleteEntry";
+
             var name =  intentRequest.Intent.Slots["name"].Value.ToLower();
 
             if(intentRequest.Intent.ConfirmationStatus.Equals("NONE"))
@@ -190,6 +228,8 @@ namespace IsThisAMood.Controllers
 
         private IActionResult ViewEntry(string accessToken, Session session, IntentRequest intentRequest)
         {
+            session.Attributes["lastIntent"] = "ViewEntry";
+
             var entry = _participantsService.GetEntry(accessToken, intentRequest.Intent.Slots["name"].Value.ToLower());
             
             if (entry == null) 
@@ -272,8 +312,10 @@ namespace IsThisAMood.Controllers
             if (!session.Attributes.TryGetValue("lastIntent", out var attributeObject))
                 return UnknownRequest(session);
 
+
             var currentIntent = (string) attributeObject;
 
+            _logger.LogDebug(currentIntent);
             switch (currentIntent) 
             {
                 case "CreateEntry":
@@ -327,6 +369,8 @@ namespace IsThisAMood.Controllers
 
         private IActionResult ListEntries(string accessToken, Session session, IntentRequest intentRequest)
         {
+            session.Attributes["lastIntent"] = "ListEntries";
+
             string mood = null;
 
             if (intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
