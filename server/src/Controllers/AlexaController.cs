@@ -334,11 +334,11 @@ namespace IsThisAMood.Controllers
                 Id = ObjectId.GenerateNewId().ToString(),
                 Name = (string) session.Attributes["name"],
                 Mood = (string) session.Attributes["mood"],
-                Rating = int.Parse((string) session.Attributes["rating"]),
+                Rating = (string) session.Attributes["rating"],
                 Activities = activitiesArray.ToObject<List<string>>()
             };
 
-            var responseText = !_participantsService.AddEntry(accessToken, entry)
+            var responseText = !_participantsService.AddEntry(accessToken, (string) session.Attributes["pin"], entry)
                 ? _configuration["Responses:EntryAddFailure"]
                 : _configuration["Responses:EntryAdded"];
 

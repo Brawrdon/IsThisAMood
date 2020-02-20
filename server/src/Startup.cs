@@ -29,6 +29,7 @@ namespace IsThisAMood
 
             services.AddSingleton<IDatabaseSettings>(sp =>
                 sp.GetRequiredService<IOptions<DatabaseSettings>>().Value);
+            services.AddSingleton<IParticipantsEncryptionService, ParticipantsEncryptionService>();
             services.AddSingleton<IParticipantsService, ParticipantsService>();
             services.AddSingleton<AuthorisationStore>();
             services.AddSingleton<IParticipantsAuthenticationService, ParticipantsAuthenticationService>();

@@ -14,7 +14,7 @@ namespace IsThisAMood.Models.Database
 
         public string Mood { get; set; }
 
-        public int Rating { get; set; }
+        public string Rating { get; set; }
 
         public List<string> Activities { get; set; }
     }

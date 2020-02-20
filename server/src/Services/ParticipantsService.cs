@@ -12,7 +12,7 @@ namespace IsThisAMood.Services
     {
         List<Participant> GetParticipants();
         Participant GetParticipant(string username);
-        bool AddEntry(string accessToken, Entry entry);
+        bool AddEntry(string accessToken, string password, Entry entry);
         bool SetAccessToken(string username, string accessToken);
         List<Entry> GetEntries(string accessToken, string mood);
         Entry GetEntry(string accessToken, string name);
@@ -24,10 +24,12 @@ namespace IsThisAMood.Services
     {
         private readonly ILogger<ParticipantsService> _logger;
         private readonly IMongoCollection<Participant> _participants;
-
-        public ParticipantsService(ILogger<ParticipantsService> logger, IDatabaseSettings settings)
+        private readonly IParticipantsEncryptionService _encryption;
+        
+        public ParticipantsService(ILogger<ParticipantsService> logger, IDatabaseSettings settings, IParticipantsEncryptionService encryption)
         {
             _logger = logger;
+            _encryption = encryption;
             var client = new MongoClient(settings.ConnectionString);
             var database = client.GetDatabase(settings.DatabaseName);
 
@@ -44,10 +46,21 @@ namespace IsThisAMood.Services
             return _participants.Find(participant => participant.Username == username).FirstOrDefault();
         }
 
-        public bool AddEntry(string accessToken, Entry entry)
+        public bool AddEntry(string accessToken, string password, Entry entry)
         {
             var builder = Builders<Participant>.Update;
-            var update = builder.Push("Entries", entry);
+            var encryptedEntry = new Entry
+            {
+                Name = _encryption.Encrypt(entry.Name, password),
+                Mood = _encryption.Encrypt(entry.Mood, password) ,
+                Rating = _encryption.Encrypt(entry.Rating, password),
+                Activities = new List<string>()
+            };
+
+            foreach (var activity in entry.Activities)
+                encryptedEntry.Activities.Add(_encryption.Encrypt(activity, password));
+            
+            var update = builder.Push("Entries", encryptedEntry);
 
             var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
 
