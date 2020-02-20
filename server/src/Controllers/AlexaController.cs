@@ -156,7 +156,7 @@ namespace IsThisAMood.Controllers
             session.Attributes["lastIntent"] = "CreateEntry";
 
             var name = intentRequest.Intent.Slots["name"].Value.ToLower();
-            if(CheckEntryExists(accessToken, name))
+            if(CheckEntryExists(accessToken, session, name))
             {
                 return Ok(BuildElicitSlot(string.Format(_configuration["Responses:CreateEntryAlreadyExists"], name), "name"));
             }  
@@ -200,7 +200,7 @@ namespace IsThisAMood.Controllers
 
             if(intentRequest.Intent.ConfirmationStatus.Equals("NONE"))
             {
-                var entry = _participantsService.GetEntry(accessToken, name);
+                var entry = _participantsService.GetEntry(accessToken, (string) session.Attributes["pin"], name);
                 
                 if (entry == null)
                     return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], name), session));
@@ -230,7 +230,7 @@ namespace IsThisAMood.Controllers
         {
             session.Attributes["lastIntent"] = "ViewEntry";
 
-            var entry = _participantsService.GetEntry(accessToken, intentRequest.Intent.Slots["name"].Value.ToLower());
+            var entry = _participantsService.GetEntry(accessToken, (string) session.Attributes["pin"], intentRequest.Intent.Slots["name"].Value.ToLower());
             
             if (entry == null) 
                 return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], intentRequest.Intent.Slots["name"].Value.ToLower()), session));
@@ -338,7 +338,7 @@ namespace IsThisAMood.Controllers
                 Activities = activitiesArray.ToObject<List<string>>()
             };
 
-            var responseText = !_participantsService.AddEntry(accessToken, (string) session.Attributes["pin"], entry)
+            var responseText = !_participantsService.AddEntry(accessToken,  (string) session.Attributes["pin"], entry)
                 ? _configuration["Responses:EntryAddFailure"]
                 : _configuration["Responses:EntryAdded"];
 
@@ -353,8 +353,8 @@ namespace IsThisAMood.Controllers
             return Ok(BuildAskResponse(responseText, session));
         }
 
-        private bool CheckEntryExists(string accessToken, string name) {
-            if(_participantsService.GetEntry(accessToken, name) != null) 
+        private bool CheckEntryExists(string accessToken, Session session, string name) {
+            if(_participantsService.GetEntry(accessToken, (string) session.Attributes["pin"],  name) != null) 
                 return true;
 
             return false;
@@ -376,7 +376,7 @@ namespace IsThisAMood.Controllers
             if (intentRequest.Intent.Slots.TryGetValue("mood", out var slot))
                 mood = slot.Value;
 
-            var entries = _participantsService.GetEntries(accessToken, mood);
+            var entries = _participantsService.GetEntries(accessToken, (string) session.Attributes["pin"], mood);
             SkillResponse skillResponse = GetEntriesFromPage(session, entries);
 
             return Ok(skillResponse);

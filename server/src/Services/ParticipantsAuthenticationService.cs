@@ -82,7 +82,7 @@ namespace IsThisAMood.Services
         {
             using var algorithm = SHA256.Create();
             var hashedBytes = algorithm.ComputeHash(Encoding.UTF8.GetBytes(accessToken));
-            return Encoding.UTF8.GetString(hashedBytes);
+            return BitConverter.ToString(hashedBytes);
         }
 
         public string CreateAuthorisationCode(string username)

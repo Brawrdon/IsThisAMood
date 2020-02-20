@@ -13,16 +13,21 @@ namespace IsThisAMood.Services
 
     public class ParticipantsEncryptionService : IParticipantsEncryptionService
     {
-        public string Encrypt(string plainText,string key)
+        public string Encrypt(string plainText, string key)
         {
             byte[] encrypted;
+            byte[] hashedKey;
             var iv = new byte[16];
             
             // Create an Aes object
             // with the specified key and IV.
             using (var aesAlg = Aes.Create())
             {
-                aesAlg.Key = Encoding.UTF8.GetBytes(key);
+                using(var algorithm = SHA256.Create())
+                     hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
+                
+                
+                aesAlg.Key = hashedKey;
                 aesAlg.IV = iv;
 
                 // Create an encryptor to perform the stream transform.
@@ -42,6 +47,7 @@ namespace IsThisAMood.Services
             // Return the encrypted bytes from the memory stream.
             return Encoding.UTF8.GetString(encrypted);
         }
+    
 
         public string Decrypt(string cipherText, string key)
         {
@@ -49,6 +55,7 @@ namespace IsThisAMood.Services
             // Declare the string used to hold
             // the decrypted text.
             var cipherTextBytes = Encoding.UTF8.GetBytes(cipherText);
+            byte[] hashedKey;
             string plaintext = null;
             byte[] iv = new byte[16];
 
@@ -56,7 +63,10 @@ namespace IsThisAMood.Services
             // with the specified key and IV.
             using (var aesAlg = Aes.Create())
             {
-                aesAlg.Key = Encoding.UTF8.GetBytes(key);
+                using(var algorithm = SHA256.Create()) 
+                     hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
+
+                aesAlg.Key = hashedKey;
                 aesAlg.IV = iv;
 
                 // Create a decryptor to perform the stream transform.
