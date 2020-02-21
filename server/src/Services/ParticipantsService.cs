@@ -185,14 +185,14 @@ namespace IsThisAMood.Services
             var decryptedEntry = new Entry
             {
                 Id = entry.Id,
-                Name = _encryption.Decrypt(entry.Name, password),
-                Mood = _encryption.Decrypt(entry.Mood, password),
-                Rating = _encryption.Decrypt(entry.Rating, password),
+                Name = _encryption.Decrypt(entry.Name, password).Replace("\0", string.Empty),
+                Mood = _encryption.Decrypt(entry.Mood, password).Replace("\0", string.Empty),
+                Rating = _encryption.Decrypt(entry.Rating, password).Replace("\0", string.Empty),
                 Activities = new List<string>()
             };
             
             foreach (var activity in entry.Activities)
-                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, password));
+                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, password).Replace("\0", string.Empty));
 
             return decryptedEntry;
             

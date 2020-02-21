@@ -204,6 +204,9 @@ namespace IsThisAMood.Controllers
             }  
             else 
             {
+                if (name.Length > 16)
+                    return Ok(BuildElicitSlot(string.Format(_configuration["Responses:NameTooLong"], name), "name"));
+
                 var mood = _intentRequest.Intent.Slots["mood"].Value;
                 _skillRequest.Session.Attributes["mood"] = mood;
                 _skillRequest.Session.Attributes["rating"] = _intentRequest.Intent.Slots["rating"].Value;
@@ -469,7 +472,6 @@ namespace IsThisAMood.Controllers
 
         private SkillResponse BuildElicitSlot(string message, string slot, Intent intent = null){
               var skillResponse = ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech(message), slot, intent);
-            
               skillResponse.SessionAttributes = _skillRequest.Session.Attributes;
 
               return skillResponse;
