@@ -12,6 +12,7 @@ namespace IsThisAMood.Services
     {
         List<Participant> GetParticipants();
         Participant GetParticipant(string username);
+        Participant GetParticipantFromToken(string token);
         bool AddEntry(string accessToken, string password, Entry entry);
         bool SetAccessToken(string username, string accessToken);
         List<Entry> GetEntries(string accessToken, string password, string mood);
@@ -132,7 +133,7 @@ namespace IsThisAMood.Services
             return decryptedEntries;
         }
 
-        private Participant GetParticipantFromToken(string accessToken)
+        public Participant GetParticipantFromToken(string accessToken)
         {
             var participant = _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
             if (participant == null)
