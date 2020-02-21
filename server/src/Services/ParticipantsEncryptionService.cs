@@ -15,11 +15,13 @@ namespace IsThisAMood.Services
     {
         public string Encrypt(string plainText, string keyString)
         {
-            using var algorithm = SHA256.Create();
-                var key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
+            byte[] key;
+            using(var algorithm = SHA256.Create())
+                key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
 
             using (var aesAlg = Aes.Create())
             {
+                aesAlg.Padding = PaddingMode.Zeros;
                 using (var encryptor = aesAlg.CreateEncryptor(key, aesAlg.IV))
                 {
                     using (var msEncrypt = new MemoryStream())
@@ -54,11 +56,14 @@ namespace IsThisAMood.Services
 
             Buffer.BlockCopy(fullCipher, 0, iv, 0, iv.Length);
             Buffer.BlockCopy(fullCipher, iv.Length, cipher, 0, iv.Length);
-            using var algorithm = SHA256.Create();
-                var key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
+            
+            byte[] key;
+            using(var algorithm = SHA256.Create())
+                key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
                 
             using (var aesAlg = Aes.Create())
             {
+                aesAlg.Padding = PaddingMode.Zeros;
                 using (var decryptor = aesAlg.CreateDecryptor(key, iv))
                 {
                     string result;
