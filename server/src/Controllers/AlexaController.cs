@@ -42,18 +42,25 @@ namespace IsThisAMood.Controllers
         [HttpPost]
         public IActionResult ReceiveRequest(SkillRequest skillRequest)
         {
-            _skillRequest = skillRequest;
-            _accessToken = _participantsAuthenticationService.GetHashedString(_skillRequest.Session.User.AccessToken);
-            _participantId = _participantsService.GetParticipantFromToken(_accessToken).Id;
             var skillId = skillRequest.Context.System.Application.ApplicationId;
+            
             if (!skillId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
                 _logger.LogWarning("Incorrect skill ID : {SkillID}", skillId);
                 return Unauthorized();
             }
 
-            _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
-            ;
+            _skillRequest = skillRequest;
+            _accessToken = _participantsAuthenticationService.GetHashedString(_skillRequest.Session.User.AccessToken);
+            _participantId = _participantsService.GetParticipantFromToken(_accessToken).Id;
+
+            _logger.LogDebug("Request type : {AlexaRequest}", _skillRequest.Request.Type);
+            
+
+             if (_skillRequest.Session.Attributes == null)
+                _skillRequest.Session.Attributes = new Dictionary<string, object>();
+                
+            
             using (_logger.BeginScope("Participant {ParticipantId} via session {SessionId}", _participantId, _skillRequest.Session.SessionId))
             {
                 return skillRequest.Request.Type switch
@@ -68,16 +75,17 @@ namespace IsThisAMood.Controllers
         private IActionResult LaunchRequest()
         {
             _logger.LogInformation("Participant launched intent {Intent}", "LaunchRequest");
-            var responseText = _configuration["Responses:LaunchRequest"];
-            return Ok(BuildAskResponse(responseText));
+            _skillRequest.Session.Attributes["lastIntent"] = "LaunchRequest";
+
+            return Ok(BuildElicitSlot(_configuration["Responses:LaunchRequest"] + " " + _configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin", Slots = new Dictionary<string, Slot> 
+            { 
+                {"pin", new Slot {Name = "pin"}}
+            }}));
         }
 
         private IActionResult IntentRequest()
         {
             _intentRequest = _skillRequest.Request as IntentRequest;
-        
-            if (_skillRequest.Session.Attributes == null)
-                _skillRequest.Session.Attributes = new Dictionary<string, object>();
 
             if(!_skillRequest.Session.Attributes.TryGetValue("lastIntent", out _))
                 _skillRequest.Session.Attributes["lastIntent"] = _intentRequest?.Intent.Name;
@@ -168,13 +176,17 @@ namespace IsThisAMood.Controllers
             }
 
             var lastIntent = (string) _skillRequest.Session.Attributes["lastIntent"];
-            var intentJObject = (JObject) _skillRequest.Session.Attributes["intent"];
-            _intentRequest = intentJObject.ToObject<IntentRequest>();
-            _skillRequest.Session.Attributes = new Dictionary<string, object>
+             _skillRequest.Session.Attributes = new Dictionary<string, object>
             {
                 {"pin", pin},
                 {"lastIntent", lastIntent}
             };
+
+            if (!_skillRequest.Session.Attributes.TryGetValue("intent", out var intent))
+                return Ok(BuildAskResponse(_configuration["Responses:Prompt"]));
+        
+            var intentJObject = (JObject) intent;
+            _intentRequest = intentJObject.ToObject<IntentRequest>();
 
             return lastIntent == "SetPin" ? Ok(BuildAskResponse(_configuration["Responses:Prompt"])) : RunIntentRequest();
         }
