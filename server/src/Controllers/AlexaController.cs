@@ -66,6 +66,7 @@ namespace IsThisAMood.Controllers
                 return skillRequest.Request.Type switch
                 {
                     "LaunchRequest" => LaunchRequest(),
+                    "SessionEndedRequest" => SessionEndedRequest(),
                     "IntentRequest" => IntentRequest(),
                     _ => UnknownRequest()
                 };
@@ -74,9 +75,7 @@ namespace IsThisAMood.Controllers
         
         private IActionResult LaunchRequest()
         {
-            _logger.LogInformation("Participant launched intent {Intent}", "LaunchRequest");
             _skillRequest.Session.Attributes["lastIntent"] = "LaunchRequest";
-
             return Ok(BuildElicitSlot(_configuration["Responses:LaunchRequest"] + " " + _configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin", Slots = new Dictionary<string, Slot> 
             { 
                 {"pin", new Slot {Name = "pin"}}
@@ -139,8 +138,6 @@ namespace IsThisAMood.Controllers
                         return CancelIntent();
                     case "AMAZON.StopIntent":
                         return StopIntent();
-                    case "SessionEndedRequest":
-                        return SessionEndedRequest();
                     default:
                         _logger.LogError("Unknown intent requested", _intentRequest?.Intent.Name);
                         return UnknownRequest();
@@ -150,6 +147,7 @@ namespace IsThisAMood.Controllers
 
         private IActionResult CancelIntent()
         {
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "AMAZON.CancelIntent", true);
             return Ok(BuildAskResponse(_configuration["Responses:Prompt"]));
         }
 
@@ -160,6 +158,7 @@ namespace IsThisAMood.Controllers
 
         private IActionResult StopIntent()
         {
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "AMAZON.StopIntent", true);
             return Ok(ResponseBuilder.Tell("Bye bye."));
         }
 
@@ -182,6 +181,12 @@ namespace IsThisAMood.Controllers
                 {"lastIntent", lastIntent}
             };
 
+           
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "SetPin", true);
+            
+            if(lastIntent == "LaunchRequest") 
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", "LaunchIntent", true);
+
             if (!_skillRequest.Session.Attributes.TryGetValue("intent", out var intent))
                 return Ok(BuildAskResponse(_configuration["Responses:Prompt"]));
         
@@ -195,7 +200,6 @@ namespace IsThisAMood.Controllers
         private IActionResult CreateEntry()
         {
             _skillRequest.Session.Attributes["lastIntent"] = "CreateEntry";
-
             var name = _intentRequest.Intent.Slots["name"].Value.ToLower();
             if(CheckEntryExists(name))
             {
@@ -204,9 +208,6 @@ namespace IsThisAMood.Controllers
             }  
             else 
             {
-                if (name.Length > 16)
-                    return Ok(BuildElicitSlot(string.Format(_configuration["Responses:NameTooLong"], name), "name"));
-
                 var mood = _intentRequest.Intent.Slots["mood"].Value;
                 _skillRequest.Session.Attributes["mood"] = mood;
                 _skillRequest.Session.Attributes["rating"] = _intentRequest.Intent.Slots["rating"].Value;
@@ -215,6 +216,7 @@ namespace IsThisAMood.Controllers
 
                 var responseText = string.Format(_configuration["Responses:CreateEntry"], mood);
                 var skillResponse = BuildAskResponse(responseText);
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
 
                 return Ok(skillResponse);
             }
@@ -231,6 +233,8 @@ namespace IsThisAMood.Controllers
                 var activities = (JArray) _skillRequest.Session.Attributes["activities"];
                 activities.Add(_intentRequest.Intent.Slots["activity"].Value);
                 
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
+
                 return Ok(BuildAskResponse(_configuration["Responses:AddActivityToEntry"]));
             }
             
@@ -267,10 +271,12 @@ namespace IsThisAMood.Controllers
                     responseText = "I've deleted that entry!";
 
                 responseText += $" {_configuration["Responses:Prompt"]}";
+                _logger.LogInformation("{Intent} completed with confirmation status {ConfirmationStatus}: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"],_intentRequest.Intent.ConfirmationStatus, true);
 
                 return Ok(BuildAskResponse(responseText));
             } else {
-                return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
+                 _logger.LogInformation("{Intent} completed with confirmation status {ConfirmationStatus}: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"],_intentRequest.Intent.ConfirmationStatus, true);
+                 return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
             }
         }
 
@@ -296,14 +302,17 @@ namespace IsThisAMood.Controllers
             else 
             {
                 responseText += " You said the following activities contributed to your mood:";
-                foreach(var activity in activities) 
+                for(var i = 0; i < activities.Count; i++)
                 {
-                    responseText += $" {activity}...";
+                    if(i == activities.Count - 1) 
+                        responseText += $" and {activities[i]}...";
+                    else
+                        responseText += $" {activities[i]}...";
                 }
             }
 
             responseText += $" {_configuration["Responses:Prompt"]}";
-
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
             return Ok(BuildAskResponse(responseText));
         }
 
@@ -344,6 +353,8 @@ namespace IsThisAMood.Controllers
 
             var currentIntent = (string) attributeObject;
 
+            _logger.LogInformation("YesIntent launched for {Intent}", _skillRequest.Session.Attributes["lastIntent"]);
+
             switch (currentIntent) 
             {
                 case "CreateEntry":
@@ -366,7 +377,8 @@ namespace IsThisAMood.Controllers
 
             var currentIntent = (string) attributeObject;
 
-            _logger.LogDebug(currentIntent);
+            _logger.LogInformation("NoIntent launched for {Intent}", _skillRequest.Session.Attributes["lastIntent"]);
+
             switch (currentIntent) 
             {
                 case "CreateEntry":
