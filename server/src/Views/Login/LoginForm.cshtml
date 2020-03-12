@@ -2,29 +2,33 @@
 @addTagHelper "*, Microsoft.AspNetCore.Mvc.TagHelpers"
 
 @{
-    Layout = null;
+    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<!DOCTYPE html>
-
-<html>
-<head>
-    <title>title</title>
-</head>
-<body>
-<div>
-    <form action="/projects/IsThisAMood/api/login" method="post">
-        <input type="hidden" asp-for="ClientId"/>
-        <input type="hidden" asp-for="RedirectUri"/>
-        <input type="hidden" asp-for="ResponseType"/>
-        <input type="hidden" asp-for="Scope"/>
-        <input type="hidden" asp-for="State"/>
-        <label>Username</label>
-        <input asp-for="Username"/>
-        <label>Password</label>
-        <input asp-for="Password"/>
-        <button type="submit">Sign In</button>
-    </form>
-</div>
-</body>
-</html>
+@if((bool)ViewData["fail"])
+{
+    <div class="ui warning message">
+        <div class="header">
+            There was a problem with that login!
+        </div>
+    </div>
+}
+<form action="/projects/IsThisAMood/api/login" method="post">
+    <input type="hidden" asp-for="ClientId"/>
+    <input type="hidden" asp-for="RedirectUri"/>
+    <input type="hidden" asp-for="ResponseType"/>
+    <input type="hidden" asp-for="Scope"/>
+    <input type="hidden" asp-for="State"/>
+   <div class="ui form">        
+        <div class="field">
+            <label>Username</label>
+            <input type="text" asp-for="Username" placeholder="Username">
+        </div>
+        <div class="field">
+            <label>Password</label>
+            <input type="password" asp-for="Password">
+        </div>
+    <button type="submit" class="ui button">Log In</button>
+  </div>
+  
+</form>
