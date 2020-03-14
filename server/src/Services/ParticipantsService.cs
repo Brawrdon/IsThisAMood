@@ -11,12 +11,13 @@ namespace IsThisAMood.Services
     public interface IParticipantsService
     {
         List<Participant> GetParticipants();
-        Participant GetParticipant(string username);
+        Participant GetParticipant(string email);
         Participant GetParticipantFromToken(string token);
-        bool AddEntry(string accessToken, string password, Entry entry);
-        bool SetAccessToken(string username, string accessToken);
-        List<Entry> GetEntries(string accessToken, string password, string mood);
-        Entry GetEntry(string accessToken, string password, string name);
+        void AddParticipant(string email, string pin);
+        bool AddEntry(string accessToken, string pin, Entry entry);
+        bool SetAccessToken(string email, string accessToken);
+        List<Entry> GetEntries(string accessToken, string pin, string mood);
+        Entry GetEntry(string accessToken, string pin, string name);
         bool DeleteEntry(string accessToken, string name);
         bool CheckPin(string accessToken, string pin);
     }
@@ -42,25 +43,25 @@ namespace IsThisAMood.Services
             return _participants.Find(participant => true).ToList();
         }
 
-        public Participant GetParticipant(string username)
+        public Participant GetParticipant(string email)
         {
-            return _participants.Find(participant => participant.Username == username).FirstOrDefault();
+            return _participants.Find(participant => participant.Email == email).FirstOrDefault();
         }
 
-        public bool AddEntry(string accessToken, string password, Entry entry)
+        public bool AddEntry(string accessToken, string pin, Entry entry)
         {
             var builder = Builders<Participant>.Update;
             var encryptedEntry = new Entry
             {
                 Id = entry.Id,
-                Name = _encryption.Encrypt(entry.Name, password),
-                Mood = _encryption.Encrypt(entry.Mood, password) ,
-                Rating = _encryption.Encrypt(entry.Rating, password),
+                Name = _encryption.Encrypt(entry.Name, pin),
+                Mood = _encryption.Encrypt(entry.Mood, pin) ,
+                Rating = _encryption.Encrypt(entry.Rating, pin),
                 Activities = new List<string>()
             };
 
             foreach (var activity in entry.Activities)
-                encryptedEntry.Activities.Add(_encryption.Encrypt(activity, password));
+                encryptedEntry.Activities.Add(_encryption.Encrypt(activity, pin));
             
             var update = builder.Push("Entries", encryptedEntry);
 
@@ -84,17 +85,17 @@ namespace IsThisAMood.Services
             return true;
         }
 
-        public bool SetAccessToken(string username, string accessToken)
+        public bool SetAccessToken(string email, string accessToken)
         {
             var builder = Builders<Participant>.Update;
             var update = builder.Set(participant => participant.AccessToken, accessToken);
 
-            var updateResult = _participants.UpdateOne(participant => participant.Username == username, update);
+            var updateResult = _participants.UpdateOne(participant => participant.Email == email, update);
 
             if (!updateResult.IsAcknowledged)
             {
                 _logger.LogError("Attempting to update participant {UserName}'s access token was not acknowledged",
-                    username);
+                    email);
                 return false;
             }
 
@@ -102,16 +103,16 @@ namespace IsThisAMood.Services
             {
                 _logger.LogError(
                     "Modified count when attempting to update access token for participant {UserName} was {ModifiedCount}",
-                    username, updateResult.ModifiedCount);
+                    email, updateResult.ModifiedCount);
                 return false;
             }
 
-            _logger.LogDebug("Participant {UserName}'s access token was updated", username);
+            _logger.LogDebug("Participant {UserName}'s access token was updated", email);
             
             return true;
         }
 
-        public List<Entry> GetEntries(string accessToken, string password, string mood = null)
+        public List<Entry> GetEntries(string accessToken, string pin, string mood = null)
         {
             var participant = GetParticipantFromToken(accessToken);
             
@@ -128,7 +129,7 @@ namespace IsThisAMood.Services
             var decryptedEntries = new List<Entry>();
 
             foreach(var entry in entries)
-                decryptedEntries.Add(DecryptEntry(entry, password));
+                decryptedEntries.Add(DecryptEntry(entry, pin));
 
             return decryptedEntries;
         }
@@ -142,9 +143,9 @@ namespace IsThisAMood.Services
             return participant;
         }
 
-        public Entry GetEntry(string accessToken, string password, string name)
+        public Entry GetEntry(string accessToken, string pin, string name)
         {
-            var entries = GetEntries(accessToken, password);
+            var entries = GetEntries(accessToken, pin);
             return entries.Select(x => x).FirstOrDefault(x => x.Name == name);
         }
 
@@ -177,25 +178,38 @@ namespace IsThisAMood.Services
         {
             var participant = GetParticipantFromToken(accessToken);
 
-            return participant.AlexaPin == pin;
+            return participant.Pin == pin;
         }
 
-        private Entry DecryptEntry(Entry entry, string password)
+        private Entry DecryptEntry(Entry entry, string pin)
         {
             var decryptedEntry = new Entry
             {
                 Id = entry.Id,
-                Name = _encryption.Decrypt(entry.Name, password).Replace("\0", string.Empty),
-                Mood = _encryption.Decrypt(entry.Mood, password).Replace("\0", string.Empty),
-                Rating = _encryption.Decrypt(entry.Rating, password).Replace("\0", string.Empty),
+                Name = _encryption.Decrypt(entry.Name, pin).Replace("\0", string.Empty),
+                Mood = _encryption.Decrypt(entry.Mood, pin).Replace("\0", string.Empty),
+                Rating = _encryption.Decrypt(entry.Rating, pin).Replace("\0", string.Empty),
                 Activities = new List<string>()
             };
             
             foreach (var activity in entry.Activities)
-                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, password).Replace("\0", string.Empty));
+                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, pin).Replace("\0", string.Empty));
 
             return decryptedEntry;
             
+        }
+
+        public void AddParticipant(string email, string pin)
+        {
+            var participant = new Participant 
+            {
+                Email = email,
+                Pin = pin,
+                Entries = new List<Entry>(),
+                AccessToken = "",
+            };
+
+            _participants.InsertOne(participant);
         }
     }
 }

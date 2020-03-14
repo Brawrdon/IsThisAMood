@@ -18,10 +18,10 @@ namespace IsThisAMood.Services
 
     public interface IParticipantsAuthenticationService
     {
-        bool Authenticate(string username, string password);
-        string CreateAuthorisationCode(string username);
-        string CreateAccessToken(string username);
-        string GetHashedString(string accessToken);
+        bool Authenticate(string email, string pin);
+        string CreateAuthorisationCode(string email);
+        string CreateAccessToken(string email);
+        string GetHashedString(string stringToHash);
     }
 
     public class ParticipantsAuthenticationService : IParticipantsAuthenticationService
@@ -38,24 +38,24 @@ namespace IsThisAMood.Services
             _authorisationStore = authorisationStore;
         }
 
-        public bool Authenticate(string username, string password)
+        public bool Authenticate(string email, string pin)
         {
-            var participant = _participantsService.GetParticipant(username);
+            var participant = _participantsService.GetParticipant(email);
 
             if (participant == null)
             {
-                _logger.LogDebug("User {UserName} doesn't exist", username);
+                _logger.LogDebug("User {UserName} doesn't exist", email);
                 return false;
             }
 
-            //ToDo: Hash passwords
-            if (username == participant.Username && password == participant.Password)
+            //ToDo: Hash pins
+            if (email == participant.Email && pin == participant.Pin)
             {
-                _logger.LogDebug("{UserName} authenticated", username);
+                _logger.LogDebug("{UserName} authenticated", email);
                 return true;
             }
 
-            _logger.LogDebug("Incorrect password for {UserName}", username);
+            _logger.LogDebug("Incorrect pin for {UserName}", email);
             return false;
         }
 
@@ -64,31 +64,31 @@ namespace IsThisAMood.Services
             var accessToken = Guid.NewGuid().ToString();
             var hashedToken = GetHashedString(accessToken);
 
-            if (!_authorisationStore.Codes.TryGetValue(code, out var username))
+            if (!_authorisationStore.Codes.TryGetValue(code, out var email))
                 return null;
 
-            var participant = _participantsService.GetParticipant(username);
+            var participant = _participantsService.GetParticipant(email);
 
             if (participant == null)
                 return null;
 
-            if (!_participantsService.SetAccessToken(participant.Username, hashedToken))
+            if (!_participantsService.SetAccessToken(participant.Email, hashedToken))
                 return null;
 
             return accessToken;
         }
 
-        public string GetHashedString(string accessToken)
+        public string GetHashedString(string stringToHash)
         {
             using var algorithm = SHA256.Create();
-            var hashedBytes = algorithm.ComputeHash(Encoding.UTF8.GetBytes(accessToken));
+            var hashedBytes = algorithm.ComputeHash(Encoding.UTF8.GetBytes(stringToHash));
             return BitConverter.ToString(hashedBytes);
         }
 
-        public string CreateAuthorisationCode(string username)
+        public string CreateAuthorisationCode(string email)
         {
             var code = Guid.NewGuid().ToString();
-            _authorisationStore.Codes.Add(code, username);
+            _authorisationStore.Codes.Add(code, email);
             return code;
         }
     }

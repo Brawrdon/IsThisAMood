@@ -1,4 +1,5 @@
 using IsThisAMood.Models.Responses;
+using IsThisAMood.Models.Requests;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -9,12 +10,15 @@ namespace IsThisAMood.Controllers
     {
         private readonly ILogger<AlexaController> _logger;
         private readonly IParticipantsAuthenticationService _participantsAuthenticationService;
+        private readonly IParticipantsService _participantsService;
 
         public LoginController(ILogger<AlexaController> logger,
-            IParticipantsAuthenticationService participantsAuthenticationService)
+            IParticipantsAuthenticationService participantsAuthenticationService,
+            IParticipantsService participantsService)
         {
             _logger = logger;
             _participantsAuthenticationService = participantsAuthenticationService;
+            _participantsService = participantsService;
         }
 
         [HttpGet]
@@ -62,20 +66,40 @@ namespace IsThisAMood.Controllers
         [Route("[controller]")]
         public IActionResult Token([FromForm] LoginFormModel loginForm)
         {
-            if (!_participantsAuthenticationService.Authenticate(loginForm.Username, loginForm.Password))
+            if (!_participantsAuthenticationService.Authenticate(loginForm.Email, loginForm.Pin))
             {
                   return Redirect(Request.Headers["Referer"].ToString() + "&fail=true");
             }
 
-            var code = _participantsAuthenticationService.CreateAuthorisationCode(loginForm.Username);
+            var code = _participantsAuthenticationService.CreateAuthorisationCode(loginForm.Email);
             return Redirect(loginForm.RedirectUri + "?state=" + loginForm.State + "&code=" + code);
+        }
+
+        [HttpPost]
+        [Route("/signup")]
+        public IActionResult SignUp([FromBody] Account account) 
+        {
+            _logger.LogDebug("hey muffins");
+            var pin = _participantsAuthenticationService.GetHashedString(account.Pin);
+            _participantsService.AddParticipant(account.Email, pin);
+
+            var code = _participantsAuthenticationService.CreateAuthorisationCode(account.Email);
+            var token = _participantsAuthenticationService.CreateAccessToken(code);
+
+            var accesToken = new AccessToken
+            {
+                Token = token,
+                Type = "bearer"
+            };
+
+            return Ok(accesToken);
         }
     }
 
     public class LoginFormModel
     {
-        public string Username { get; set; }
-        public string Password { get; set; }
+        public string Email { get; set; }
+        public string Pin { get; set; }
         public string ClientId { get; set; }
         public string RedirectUri { get; set; }
         public string ResponseType { get; set; }
