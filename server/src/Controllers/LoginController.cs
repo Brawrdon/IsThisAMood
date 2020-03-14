@@ -23,8 +23,11 @@ namespace IsThisAMood.Controllers
             [FromQuery(Name = "redirect_uri")] string redirectUri,
             [FromQuery(Name = "response_type")] string responseType,
             [FromQuery] string scope,
-            [FromQuery] string state)
+            [FromQuery] string state,
+            [FromQuery] bool fail = false)
         {
+
+            ViewData["fail"] = fail;
             return View("LoginForm", new LoginFormModel
             {
                 ClientId = clientId, RedirectUri = redirectUri, ResponseType = responseType, Scope = scope,
@@ -61,12 +64,7 @@ namespace IsThisAMood.Controllers
         {
             if (!_participantsAuthenticationService.Authenticate(loginForm.Username, loginForm.Password))
             {
-                return RedirectToAction("Login", new LoginFormModel
-                {
-                    ClientId = loginForm.ClientId, RedirectUri = loginForm.RedirectUri,
-                    ResponseType = loginForm.ResponseType, Scope = loginForm.Scope,
-                    State = loginForm.State
-                });
+                  return Redirect(Request.Headers["Referer"].ToString() + "&fail=true");
             }
 
             var code = _participantsAuthenticationService.CreateAuthorisationCode(loginForm.Username);

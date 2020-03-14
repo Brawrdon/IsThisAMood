@@ -26,6 +26,7 @@ namespace IsThisAMood.Controllers
 
         private SkillRequest _skillRequest;
         private string _accessToken;
+        private string _participantId;
         private IntentRequest _intentRequest;
 
         public AlexaController(ILogger<AlexaController> logger, IConfiguration configuration,
@@ -41,37 +42,49 @@ namespace IsThisAMood.Controllers
         [HttpPost]
         public IActionResult ReceiveRequest(SkillRequest skillRequest)
         {
-            _skillRequest = skillRequest;
             var skillId = skillRequest.Context.System.Application.ApplicationId;
+            
             if (!skillId.Equals(Environment.GetEnvironmentVariable("ALEXA_SKILL_ID")))
             {
                 _logger.LogWarning("Incorrect skill ID : {SkillID}", skillId);
                 return Unauthorized();
             }
 
-            _logger.LogDebug("Request type : {AlexaRequest}", skillRequest.Request.Type);
+            _skillRequest = skillRequest;
+            _accessToken = _participantsAuthenticationService.GetHashedString(_skillRequest.Session.User.AccessToken);
+            _participantId = _participantsService.GetParticipantFromToken(_accessToken).Id;
 
-            return skillRequest.Request.Type switch
+            _logger.LogDebug("Request type : {AlexaRequest}", _skillRequest.Request.Type);
+            
+
+             if (_skillRequest.Session.Attributes == null)
+                _skillRequest.Session.Attributes = new Dictionary<string, object>();
+                
+            
+            using (_logger.BeginScope("Participant {ParticipantId} via session {SessionId}", _participantId, _skillRequest.Session.SessionId))
             {
-                "LaunchRequest" => LaunchRequest(),
-                "IntentRequest" => IntentRequest(),
-                _ => UnknownRequest()
-            };
+                return skillRequest.Request.Type switch
+                {
+                    "LaunchRequest" => LaunchRequest(),
+                    "SessionEndedRequest" => SessionEndedRequest(),
+                    "IntentRequest" => IntentRequest(),
+                    _ => UnknownRequest()
+                };
+            }
         }
         
         private IActionResult LaunchRequest()
         {
-            var responseText = _configuration["Responses:LaunchRequest"];
-            return Ok(BuildAskResponse(responseText));
+            _skillRequest.Session.Attributes["lastIntent"] = "LaunchRequest";
+            return Ok(BuildElicitSlot(_configuration["Responses:LaunchRequest"] + " " + _configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin", Slots = new Dictionary<string, Slot> 
+            { 
+                {"pin", new Slot {Name = "pin"}}
+            }}));
         }
 
         private IActionResult IntentRequest()
         {
             _intentRequest = _skillRequest.Request as IntentRequest;
-            _accessToken = _participantsAuthenticationService.GetHashedString(_skillRequest.Session.User.AccessToken);
-        
-            if (_skillRequest.Session.Attributes == null)
-                _skillRequest.Session.Attributes = new Dictionary<string, object>();
 
             if(!_skillRequest.Session.Attributes.TryGetValue("lastIntent", out _))
                 _skillRequest.Session.Attributes["lastIntent"] = _intentRequest?.Intent.Name;
@@ -84,7 +97,10 @@ namespace IsThisAMood.Controllers
                 default:
                     if(!_skillRequest.Session.Attributes.TryGetValue("pin", out var _)) {
                         _skillRequest.Session.Attributes["intent"] = _intentRequest;
-                        return Ok(BuildElicitSlot(_configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin"}));
+                        return Ok(BuildElicitSlot(_configuration["Responses:SetPin"], "pin", new Intent {Name = "SetPin", Slots = new Dictionary<string, Slot> 
+                        { 
+                            {"pin", new Slot {Name = "pin"}}
+                        }}));
                     }
                     break;
             }
@@ -93,59 +109,89 @@ namespace IsThisAMood.Controllers
         }
 
         private IActionResult RunIntentRequest() {
-            _logger.LogDebug("Intent launched : {Intent}", _intentRequest?.Intent.Name);
-
-            switch (_intentRequest?.Intent.Name)
+            using (_logger.BeginScope("Intent requested: {Intent}", _intentRequest?.Intent.Name))
             {
-                case "SetPin":
-                    return SetPin();
-                case "CreateEntry":
-                    return CreateEntry();    
-                case "AddActivityToEntry":
-                    return AddActivityToEntry();    
-                case "ListEntries":
-                    return ListEntries();
-                case "ViewEntry":
-                    return ViewEntry();
-                case "DeleteEntry": 
-                    return DeleteEntry();
-                case "AMAZON.YesIntent":
-                    return YesIntent();
-                case "AMAZON.NoIntent":
-                    return NoIntent();
-                case "AMAZON.NextIntent":
-                    return NavigationIntent(1);
-                case "AMAZON.PreviousIntent":
-                    return NavigationIntent(-1);
-                case "AMAZON.StopIntent":
-                    return StopIntent();
-                default:
-                    _logger.LogError("{Intent} is not a registered intent", _intentRequest?.Intent.Name);
-                    return UnknownRequest();
+                _logger.LogInformation("Participant launched intent {Intent}", _intentRequest?.Intent.Name);
+                switch (_intentRequest?.Intent.Name)
+                {
+                    case "SetPin":
+                        return SetPin();
+                    case "CreateEntry":
+                        return CreateEntry();    
+                    case "AddActivityToEntry":
+                        return AddActivityToEntry();    
+                    case "ListEntries":
+                        return ListEntries();
+                    case "ViewEntry":
+                        return ViewEntry();
+                    case "DeleteEntry": 
+                        return DeleteEntry();
+                    case "AMAZON.YesIntent":
+                        return YesIntent();
+                    case "AMAZON.NoIntent":
+                        return NoIntent();
+                    case "AMAZON.NextIntent":
+                        return NavigationIntent(1);
+                    case "AMAZON.PreviousIntent":
+                        return NavigationIntent(-1);
+                    case "AMAZON.CancelIntent":
+                        return CancelIntent();
+                    case "AMAZON.StopIntent":
+                        return StopIntent();
+                    default:
+                        _logger.LogError("Unknown intent requested", _intentRequest?.Intent.Name);
+                        return UnknownRequest();
+                }
             }
+        }
+
+        private IActionResult CancelIntent()
+        {
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "AMAZON.CancelIntent", true);
+            return Ok(BuildAskResponse(_configuration["Responses:Prompt"]));
+        }
+
+        private IActionResult SessionEndedRequest()
+        {
+            return Ok(ResponseBuilder.Tell("Time to end the session"));
         }
 
         private IActionResult StopIntent()
         {
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "AMAZON.StopIntent", true);
             return Ok(ResponseBuilder.Tell("Bye bye."));
         }
 
         private IActionResult SetPin()
         {
             var pin = _intentRequest.Intent.Slots["pin"].Value;
-            _logger.LogDebug(_participantsAuthenticationService.GetHashedString(pin));
-            if (!_participantsService.CheckPin(_accessToken, _participantsAuthenticationService.GetHashedString(pin)))
-                return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", new Intent {Name = "SetPin"}));
-
+            if (!_participantsService.CheckPin(_accessToken, _participantsAuthenticationService.GetHashedString(pin))) 
+            {
+                _logger.LogInformation("{IntentError}", "Incorrect Pin");
+                return Ok(BuildElicitSlot(_configuration["Responses:IncorrectPin"], "pin", new Intent {Name = "SetPin", Slots = new Dictionary<string, Slot> 
+                { 
+                    {"pin", new Slot {Name = "pin"}}
+                }}));
+            }
 
             var lastIntent = (string) _skillRequest.Session.Attributes["lastIntent"];
-            var intentJObject = (JObject) _skillRequest.Session.Attributes["intent"];
-            _intentRequest = intentJObject.ToObject<IntentRequest>();
-            _skillRequest.Session.Attributes = new Dictionary<string, object>
+             _skillRequest.Session.Attributes = new Dictionary<string, object>
             {
                 {"pin", pin},
                 {"lastIntent", lastIntent}
             };
+
+           
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "SetPin", true);
+            
+            if(lastIntent == "LaunchRequest") 
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", "LaunchIntent", true);
+
+            if (!_skillRequest.Session.Attributes.TryGetValue("intent", out var intent))
+                return Ok(BuildAskResponse(_configuration["Responses:Prompt"]));
+        
+            var intentJObject = (JObject) intent;
+            _intentRequest = intentJObject.ToObject<IntentRequest>();
 
             return lastIntent == "SetPin" ? Ok(BuildAskResponse(_configuration["Responses:Prompt"])) : RunIntentRequest();
         }
@@ -154,10 +200,10 @@ namespace IsThisAMood.Controllers
         private IActionResult CreateEntry()
         {
             _skillRequest.Session.Attributes["lastIntent"] = "CreateEntry";
-
             var name = _intentRequest.Intent.Slots["name"].Value.ToLower();
             if(CheckEntryExists(name))
             {
+                _logger.LogInformation("{IntentError}", "Entry Already Exists");
                 return Ok(BuildElicitSlot(string.Format(_configuration["Responses:CreateEntryAlreadyExists"], name), "name"));
             }  
             else 
@@ -170,6 +216,7 @@ namespace IsThisAMood.Controllers
 
                 var responseText = string.Format(_configuration["Responses:CreateEntry"], mood);
                 var skillResponse = BuildAskResponse(responseText);
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
 
                 return Ok(skillResponse);
             }
@@ -186,6 +233,8 @@ namespace IsThisAMood.Controllers
                 var activities = (JArray) _skillRequest.Session.Attributes["activities"];
                 activities.Add(_intentRequest.Intent.Slots["activity"].Value);
                 
+                _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
+
                 return Ok(BuildAskResponse(_configuration["Responses:AddActivityToEntry"]));
             }
             
@@ -202,8 +251,11 @@ namespace IsThisAMood.Controllers
             {
                 var entry = _participantsService.GetEntry(_accessToken, (string) _skillRequest.Session.Attributes["pin"], name);
                 
-                if (entry == null)
+                if (entry == null) 
+                {
+                    _logger.LogInformation("{IntentError}", "Entry Not Found");
                     return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], name)));
+                }
 
                 return Ok(ResponseBuilder.DialogConfirmIntent(new PlainTextOutputSpeech(string.Format(_configuration["Responses:DeleteEntryConfirmation"], name))));          
             } 
@@ -219,10 +271,12 @@ namespace IsThisAMood.Controllers
                     responseText = "I've deleted that entry!";
 
                 responseText += $" {_configuration["Responses:Prompt"]}";
+                _logger.LogInformation("{Intent} completed with confirmation status {ConfirmationStatus}: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"],_intentRequest.Intent.ConfirmationStatus, true);
 
                 return Ok(BuildAskResponse(responseText));
             } else {
-                return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
+                 _logger.LogInformation("{Intent} completed with confirmation status {ConfirmationStatus}: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"],_intentRequest.Intent.ConfirmationStatus, true);
+                 return Ok(BuildAskResponse($"{_configuration["Responses:DeleteEntryDenied"]} {_configuration["Responses:Prompt"]}"));
             }
         }
 
@@ -233,7 +287,10 @@ namespace IsThisAMood.Controllers
             var entry = _participantsService.GetEntry(_accessToken, (string) _skillRequest.Session.Attributes["pin"], _intentRequest.Intent.Slots["name"].Value.ToLower());
             
             if (entry == null) 
+            {
+                _logger.LogInformation("{IntentError}", "Entry Not Found");
                 return Ok(BuildAskResponse(string.Format(_configuration["Responses:EntryNotFound"] + " " + _configuration["Responses:Prompt"], _intentRequest.Intent.Slots["name"].Value.ToLower())));
+            }
 
             var responseText = $"Here's the entry for {entry.Name}. You felt {entry.Mood} and gave it a rating of {entry.Rating}.";
 
@@ -245,14 +302,17 @@ namespace IsThisAMood.Controllers
             else 
             {
                 responseText += " You said the following activities contributed to your mood:";
-                foreach(var activity in activities) 
+                for(var i = 0; i < activities.Count; i++)
                 {
-                    responseText += $" {activity}...";
+                    if(i == activities.Count - 1) 
+                        responseText += $" and {activities[i]}...";
+                    else
+                        responseText += $" {activities[i]}...";
                 }
             }
 
             responseText += $" {_configuration["Responses:Prompt"]}";
-
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", _skillRequest.Session.Attributes["lastIntent"], true);
             return Ok(BuildAskResponse(responseText));
         }
 
@@ -293,6 +353,8 @@ namespace IsThisAMood.Controllers
 
             var currentIntent = (string) attributeObject;
 
+            _logger.LogInformation("YesIntent launched for {Intent}", _skillRequest.Session.Attributes["lastIntent"]);
+
             switch (currentIntent) 
             {
                 case "CreateEntry":
@@ -315,7 +377,8 @@ namespace IsThisAMood.Controllers
 
             var currentIntent = (string) attributeObject;
 
-            _logger.LogDebug(currentIntent);
+            _logger.LogInformation("NoIntent launched for {Intent}", _skillRequest.Session.Attributes["lastIntent"]);
+
             switch (currentIntent) 
             {
                 case "CreateEntry":
@@ -361,7 +424,8 @@ namespace IsThisAMood.Controllers
         }
 
     
-        private IActionResult UnknownRequest(){
+        private IActionResult UnknownRequest() {
+             _logger.LogInformation("{IntentError}", "Unknown Intent Requested");
             return Ok(BuildAskResponse(_configuration["Responses:UnknownRequest"]));
         }
 
@@ -420,7 +484,6 @@ namespace IsThisAMood.Controllers
 
         private SkillResponse BuildElicitSlot(string message, string slot, Intent intent = null){
               var skillResponse = ResponseBuilder.DialogElicitSlot(new PlainTextOutputSpeech(message), slot, intent);
-            
               skillResponse.SessionAttributes = _skillRequest.Session.Attributes;
 
               return skillResponse;

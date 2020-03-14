@@ -12,6 +12,7 @@ namespace IsThisAMood.Services
     {
         List<Participant> GetParticipants();
         Participant GetParticipant(string username);
+        Participant GetParticipantFromToken(string token);
         bool AddEntry(string accessToken, string password, Entry entry);
         bool SetAccessToken(string username, string accessToken);
         List<Entry> GetEntries(string accessToken, string password, string mood);
@@ -116,6 +117,9 @@ namespace IsThisAMood.Services
             
             var entries = participant.Entries;
 
+            if (entries.Count == 0)
+                return entries;
+
             if(mood != null)
                 entries = entries.FindAll(x => x.Mood == mood);
 
@@ -129,7 +133,7 @@ namespace IsThisAMood.Services
             return decryptedEntries;
         }
 
-        private Participant GetParticipantFromToken(string accessToken)
+        public Participant GetParticipantFromToken(string accessToken)
         {
             var participant = _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
             if (participant == null)
@@ -141,7 +145,7 @@ namespace IsThisAMood.Services
         public Entry GetEntry(string accessToken, string password, string name)
         {
             var entries = GetEntries(accessToken, password);
-            return DecryptEntry(entries.Select(x => x).FirstOrDefault(x => x.Name == name), password);
+            return entries.Select(x => x).FirstOrDefault(x => x.Name == name);
         }
 
         public bool DeleteEntry(string accessToken, string name)
@@ -181,14 +185,14 @@ namespace IsThisAMood.Services
             var decryptedEntry = new Entry
             {
                 Id = entry.Id,
-                Name = _encryption.Decrypt(entry.Name, password),
-                Mood = _encryption.Decrypt(entry.Mood, password),
-                Rating = _encryption.Decrypt(entry.Rating, password),
+                Name = _encryption.Decrypt(entry.Name, password).Replace("\0", string.Empty),
+                Mood = _encryption.Decrypt(entry.Mood, password).Replace("\0", string.Empty),
+                Rating = _encryption.Decrypt(entry.Rating, password).Replace("\0", string.Empty),
                 Activities = new List<string>()
             };
             
             foreach (var activity in entry.Activities)
-                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, password));
+                decryptedEntry.Activities.Add(_encryption.Decrypt(activity, password).Replace("\0", string.Empty));
 
             return decryptedEntry;
             

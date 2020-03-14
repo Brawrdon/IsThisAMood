@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -6,81 +7,77 @@ namespace IsThisAMood.Services
 {
     public interface IParticipantsEncryptionService
     {
-        string Encrypt(string plainText, string key);
-        string Decrypt(string cipherText, string key);
+        string Encrypt(string plainText, string keyString);
+        string Decrypt(string cipherText, string keyString);
     }
 
     public class ParticipantsEncryptionService : IParticipantsEncryptionService
     {
-        public string Encrypt(string plainText, string key)
+        public string Encrypt(string plainText, string keyString)
         {
-            byte[] encrypted;
-            var iv = new byte[16];
-            
-            // Create an Aes object
-            // with the specified key and IV.
+            byte[] key;
+            using(var algorithm = SHA256.Create())
+                key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
+
             using (var aesAlg = Aes.Create())
             {
-                byte[] hashedKey;
-                using(var algorithm = SHA256.Create())
-                     hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
-                
-                
-                aesAlg.Key = hashedKey;
-                aesAlg.IV = iv;
-
-                // Create an encryptor to perform the stream transform.
-                var encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
-
-                // Create the streams used for encryption.
-                using var msEncrypt = new MemoryStream();
-                using var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write);
-                using (var swEncrypt = new StreamWriter(csEncrypt))
+                using (var encryptor = aesAlg.CreateEncryptor(key, aesAlg.IV))
                 {
-                    //Write all data to the stream.
-                    swEncrypt.Write(plainText);
+                    using (var msEncrypt = new MemoryStream())
+                    {
+                        using (var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                        using (var swEncrypt = new StreamWriter(csEncrypt))
+                        {
+                            swEncrypt.Write(plainText);
+                        }
+
+                        var iv = aesAlg.IV;
+
+                        var decryptedContent = msEncrypt.ToArray();
+
+                        var result = new byte[iv.Length + decryptedContent.Length];
+
+                        Buffer.BlockCopy(iv, 0, result, 0, iv.Length);
+                        Buffer.BlockCopy(decryptedContent, 0, result, iv.Length, decryptedContent.Length);
+
+                        return Convert.ToBase64String(result);
+                    }
                 }
-                encrypted = msEncrypt.ToArray();
             }
-
-            // Return the encrypted bytes from the memory stream.
-            return Encoding.UTF8.GetString(encrypted);
         }
-    
 
-        public string Decrypt(string cipherText, string key)
+        public string Decrypt(string cipherText, string keyString)
         {
+            var fullCipher = Convert.FromBase64String(cipherText);
 
-            // Declare the string used to hold
-            // the decrypted text.
-            var cipherTextBytes = Encoding.UTF8.GetBytes(cipherText);
-            string plaintext = null;
-            byte[] iv = new byte[16];
+            var iv = new byte[16];
+            var cipher = new byte[fullCipher.Length - iv.Length];
 
-            // Create an Aes object
-            // with the specified key and IV.
+            Buffer.BlockCopy(fullCipher, 0, iv, 0, iv.Length);
+            Buffer.BlockCopy(fullCipher, iv.Length, cipher, 0, fullCipher.Length - iv.Length);            
+            byte[] key;
+            using(var algorithm = SHA256.Create())
+                key = algorithm.ComputeHash(Encoding.UTF8.GetBytes(keyString));
+                
             using (var aesAlg = Aes.Create())
             {
-                byte[] hashedKey;
-                using(var algorithm = SHA256.Create()) 
-                     hashedKey = algorithm.ComputeHash(Encoding.UTF8.GetBytes(key));
+                using (var decryptor = aesAlg.CreateDecryptor(key, iv))
+                {
+                    string result;
+                    using (var msDecrypt = new MemoryStream(cipher))
+                    {
+                        using (var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                        {
+                            using (var srDecrypt = new StreamReader(csDecrypt))
+                            {
+                                result = srDecrypt.ReadToEnd();
+                            }
+                        }
+                    }
 
-                aesAlg.Key = hashedKey;
-                aesAlg.IV = iv;
-
-                // Create a decryptor to perform the stream transform.
-                var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
-
-                // Create the streams used for decryption.
-                using var msDecrypt = new MemoryStream(cipherTextBytes);
-                using var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read);
-                using var srDecrypt = new StreamReader(csDecrypt);
-                // Read the decrypted bytes from the decrypting stream
-                // and place them in a string.
-                plaintext = srDecrypt.ReadToEnd();
+                    return result;
+                }
             }
-
-            return plaintext;
         }
     }
 }
