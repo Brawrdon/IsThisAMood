@@ -18,6 +18,7 @@ class SignUpPageState extends State<SignUpPage> {
 	final _loginFormKey = GlobalKey<FormState>();
 	final _signUpPinKey = GlobalKey<FormFieldState>();
 	final _loginPinKey = GlobalKey<FormFieldState>();
+	final _scaffoldKey = GlobalKey<ScaffoldState>();
 
 	String _email;
 	String _pin;
@@ -59,28 +60,7 @@ class SignUpPageState extends State<SignUpPage> {
 					_pinTextFormField("Re-enter your 4 digit pin", "Confirm Pin", _confirmPinValidation),
 					RaisedButton(
 						onPressed: () async {
-							if (_signUpFormKey.currentState.validate()) {
-								_signUpFormKey.currentState.save();
-								var url = "https://www.cs.kent.ac.uk/projects/IsThisAMood/api/signup";
-								var body = json.encode({"email": _email, "pin": _pin});
-
-								Map<String, String> headers = {
-									'Content-type': 'application/json',
-									'Accept': 'application/json',
-								};
-								var response = await http.post(url, body: body, headers: headers);
-
-								if (response.statusCode != 200)
-									Scaffold.of(context).showSnackBar(SnackBar(content: Text("There was a network error, try again.")));
-								else {
-									var responseJson = json.decode(response.body);
-									final prefs = await SharedPreferences.getInstance();
-									print(responseJson["access_token"]);
-									prefs.setString('access_token', responseJson["access_token"]);
-									prefs.setString('pin', _signUpPinKey.currentState.value);
-									Navigator.of(context).pushNamedAndRemoveUntil('/home', (Route<dynamic> route) => false);
-								}
-							}
+							await _sendRequest("https://www.cs.kent.ac.uk/projects/IsThisAMood/api/signup");
 						},
 						child: Text("Signup"))
 				]))));
@@ -99,40 +79,45 @@ class SignUpPageState extends State<SignUpPage> {
 						},
 					),
 
-					_pinTextFormField("Enter your pin", "Pin", _pinValidation),
+					_pinTextFormField("Enter your pin", "Pin", _pinValidation, key: _loginPinKey),
 
 					RaisedButton(
 						onPressed: () async {
-//                    if (_loginFormKey.currentState.validate()) {
-//                      _loginFormKey.currentState.save();
-//                      var url = "https://www.cs.kent.ac.uk/projects/IsThisAMood/api/signup";
-//                      var body = json.encode({"email": _email, "pin": _pin});
-//
-//                      Map<String, String> headers = {
-//                        'Content-type': 'application/json',
-//                        'Accept': 'application/json',
-//                      };
-//                      var response = await http.post(url, body: body, headers: headers);
-//
-//                      if (response.statusCode != 200)
-//                        Scaffold.of(context).showSnackBar(SnackBar(content: Text("There was a network error, try again.")));
-//                      else {
-//                        var responseJson = json.decode(response.body);
-//                        final prefs = await SharedPreferences.getInstance();
-//                        print(responseJson["access_token"]);
-//                        prefs.setString('access_token', responseJson["access_token"]);
-//                        prefs.setString('pin', _loginPinKey.currentState.value);
-//                        Navigator.of(context).pushNamedAndRemoveUntil('/home', (Route<dynamic> route) => false);
-//                      }
-//                    }
+							await _sendRequest("https://www.cs.kent.ac.uk/projects/IsThisAMood/api/app/login");
 						},
 						child: Text("Login"))
 				]))));
 	}
 
+	Future _sendRequest(String url) async {
+		if (_loginFormKey.currentState.validate()) {
+			_loginFormKey.currentState.save();
+			var body = json.encode({"email": _email, "pin": _pin});
+
+			print(_email);
+			Map<String, String> headers = {
+				'Content-type': 'application/json',
+				'Accept': 'application/json',
+			};
+			var response = await http.post(url, body: body, headers: headers);
+
+			if (response.statusCode != 200)
+				_scaffoldKey.currentState.showSnackBar(SnackBar(content: Text("Oops... there was a problem, try again.")));
+			else {
+				var responseJson = json.decode(response.body);
+				final prefs = await SharedPreferences.getInstance();
+				print(responseJson["access_token"]);
+				prefs.setString('access_token', responseJson["access_token"]);
+				prefs.setString('pin', _loginPinKey.currentState.value);
+				Navigator.of(context).pushNamedAndRemoveUntil('/home', (Route<dynamic> route) => false);
+			}
+		}
+	}
+
 	@override
 	Widget build(BuildContext context) {
 		return Scaffold(
+			key: _scaffoldKey,
 			appBar: AppBar(title: Text(_title)),
 			body: IndexedStack(
 				index: _currentIndex,
@@ -157,7 +142,7 @@ class SignUpPageState extends State<SignUpPage> {
 		if (_currentIndex != index)
 			setState(() {
 				_title = "Sign Up";
-				if(index == 1)
+				if (index == 1)
 					_title = "Login";
 
 				_currentIndex = index;
