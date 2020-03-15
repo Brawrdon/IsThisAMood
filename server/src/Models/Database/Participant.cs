@@ -13,5 +13,6 @@ namespace IsThisAMood.Models.Database
         public string Pin { get; set; }
         public List<Entry> Entries { get; set; }
         public string AccessToken { get; set; }
+        public string AlexaAccessToken {get; set;}
     }
 }

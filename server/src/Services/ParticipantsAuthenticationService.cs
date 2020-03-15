@@ -20,7 +20,7 @@ namespace IsThisAMood.Services
     {
         bool Authenticate(string email, string pin);
         string CreateAuthorisationCode(string email);
-        string CreateAccessToken(string email);
+        string CreateAccessToken(string email, bool alexa = false);
         string GetHashedString(string stringToHash);
     }
 
@@ -40,6 +40,7 @@ namespace IsThisAMood.Services
 
         public bool Authenticate(string email, string pin)
         {
+            email = GetHashedString(email);
             var participant = _participantsService.GetParticipant(email);
 
             if (participant == null)
@@ -49,7 +50,7 @@ namespace IsThisAMood.Services
             }
 
             //ToDo: Hash pins
-            if (email == participant.Email && pin == participant.Pin)
+            if (email == participant.Email && GetHashedString(pin) == participant.Pin)
             {
                 _logger.LogDebug("{UserName} authenticated", email);
                 return true;
@@ -59,7 +60,7 @@ namespace IsThisAMood.Services
             return false;
         }
 
-        public string CreateAccessToken(string code)
+        public string CreateAccessToken(string code, bool alexa = false)
         {
             var accessToken = Guid.NewGuid().ToString();
             var hashedToken = GetHashedString(accessToken);
@@ -72,7 +73,7 @@ namespace IsThisAMood.Services
             if (participant == null)
                 return null;
 
-            if (!_participantsService.SetAccessToken(participant.Email, hashedToken))
+            if (!_participantsService.SetAccessToken(participant.Email, hashedToken, alexa))
                 return null;
 
             return accessToken;
@@ -88,7 +89,7 @@ namespace IsThisAMood.Services
         public string CreateAuthorisationCode(string email)
         {
             var code = Guid.NewGuid().ToString();
-            _authorisationStore.Codes.Add(code, email);
+            _authorisationStore.Codes.Add(code, GetHashedString(email));
             return code;
         }
     }

@@ -15,7 +15,8 @@ namespace IsThisAMood.Services
         Participant GetParticipantFromToken(string token);
         void AddParticipant(string email, string pin);
         bool AddEntry(string accessToken, string pin, Entry entry);
-        bool SetAccessToken(string email, string accessToken);
+        bool SetAccessToken(string email, string accessToken, bool alexa);
+
         List<Entry> GetEntries(string accessToken, string pin, string mood);
         Entry GetEntry(string accessToken, string pin, string name);
         bool DeleteEntry(string accessToken, string name);
@@ -65,7 +66,7 @@ namespace IsThisAMood.Services
             
             var update = builder.Push("Entries", encryptedEntry);
 
-            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
+            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken || participant.AlexaAccessToken == accessToken, update);
 
             if (!updateResult.IsAcknowledged)
             {
@@ -85,16 +86,19 @@ namespace IsThisAMood.Services
             return true;
         }
 
-        public bool SetAccessToken(string email, string accessToken)
+        public bool SetAccessToken(string email, string accessToken, bool alexa)
         {
             var builder = Builders<Participant>.Update;
             var update = builder.Set(participant => participant.AccessToken, accessToken);
+;
+            if(alexa)
+                update = builder.Set(participant => participant.AlexaAccessToken, accessToken);
 
             var updateResult = _participants.UpdateOne(participant => participant.Email == email, update);
 
             if (!updateResult.IsAcknowledged)
             {
-                _logger.LogError("Attempting to update participant {UserName}'s access token was not acknowledged",
+                _logger.LogError("Attempting to update participant {Email}'s access token was not acknowledged",
                     email);
                 return false;
             }
@@ -102,12 +106,12 @@ namespace IsThisAMood.Services
             if (updateResult.ModifiedCount != 1)
             {
                 _logger.LogError(
-                    "Modified count when attempting to update access token for participant {UserName} was {ModifiedCount}",
+                    "Modified count when attempting to update access token for participant {Email} was {ModifiedCount}",
                     email, updateResult.ModifiedCount);
                 return false;
             }
 
-            _logger.LogDebug("Participant {UserName}'s access token was updated", email);
+            _logger.LogDebug("Participant {Email}'s access token was updated", email);
             
             return true;
         }
@@ -136,7 +140,7 @@ namespace IsThisAMood.Services
 
         public Participant GetParticipantFromToken(string accessToken)
         {
-            var participant = _participants.Find(participant => participant.AccessToken == accessToken).FirstOrDefault();
+            var participant = _participants.Find(participant => participant.AccessToken == accessToken || participant.AlexaAccessToken == accessToken).FirstOrDefault();
             if (participant == null)
                 throw new Exception("Participant doesn't exist");
 
@@ -207,9 +211,11 @@ namespace IsThisAMood.Services
                 Pin = pin,
                 Entries = new List<Entry>(),
                 AccessToken = "",
+                AlexaAccessToken = "",
             };
 
             _participants.InsertOne(participant);
         }
+       
     }
 }

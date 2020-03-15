@@ -48,7 +48,7 @@ namespace IsThisAMood.Controllers
         {
             // ToDo: Check clientId and clientSecret
 
-            var token = _participantsAuthenticationService.CreateAccessToken(code);
+            var token = _participantsAuthenticationService.CreateAccessToken(code, true);
 
             //ToDo: Deal with failures
 
@@ -77,11 +77,11 @@ namespace IsThisAMood.Controllers
 
         [HttpPost]
         [Route("/signup")]
-        public IActionResult SignUp([FromBody] Account account) 
+        public IActionResult SignUp([FromBody] AccountRequest account) 
         {
-            _logger.LogDebug("hey muffins");
             var pin = _participantsAuthenticationService.GetHashedString(account.Pin);
-            _participantsService.AddParticipant(account.Email, pin);
+            var email = _participantsAuthenticationService.GetHashedString(account.Email);
+            _participantsService.AddParticipant(email, pin);
 
             var code = _participantsAuthenticationService.CreateAuthorisationCode(account.Email);
             var token = _participantsAuthenticationService.CreateAccessToken(code);
@@ -93,6 +93,28 @@ namespace IsThisAMood.Controllers
             };
 
             return Ok(accesToken);
+        }
+
+        [HttpPost]
+        [Route("/app/login")]
+        public IActionResult login([FromBody] AccountRequest account) 
+        {            
+            if (_participantsAuthenticationService.Authenticate(account.Email, account.Pin)) {
+                var code = _participantsAuthenticationService.CreateAuthorisationCode(account.Email);
+                var token = _participantsAuthenticationService.CreateAccessToken(code);
+
+                var accesToken = new AccessToken
+                {
+                    Token = token,
+                    Type = "bearer"
+                };
+
+                return Ok(accesToken);
+
+            }
+
+            return NotFound();
+
         }
     }
 
