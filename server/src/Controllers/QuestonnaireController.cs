@@ -23,26 +23,67 @@ namespace IsThisAMood.Controllers
 
         [HttpGet]
         [Route("[controller]")]
-        public IActionResult Questionnaire([FromQuery] string token, [FromQuery] string number)
+        public IActionResult Questionnaire([FromQuery] string code, [FromQuery] string state)
         {
-            _logger.LogDebug(token);
+            var token = _participantsAuthenticationService.CreateAccessToken(code);
+
             var paticipant = _participantsService.GetParticipantFromToken(_participantsAuthenticationService.GetHashedString(token));
             if (paticipant == null)
                 return NotFound();
 
-            ViewData["number"] = number;
+            ViewData["number"] = state;
+            ViewData["token"] = token;
 
             return View("EmotionQuestionnaire", new EmotionQuestionnaireForm
             {
                 Token = token
             });
         }
+
+        [HttpPost]
+        [Route("[controller]")]
+        public IActionResult SumbitQuestionnaire([FromForm] EmotionQuestionnaireForm form, [FromQuery] string number)
+        {
+
+            float recognition = ((Reverse(float.Parse(form.Question4)) + float.Parse(form.Question18) + float.Parse(form.Question20) + float.Parse(form.Question21) + Reverse(float.Parse(form.Question22)) + float.Parse(form.Question24)) / 6) * 5;
+
+            var identification = ((Reverse(float.Parse(form.Question1)) + float.Parse(form.Question3) + Reverse(float.Parse(form.Question8)) + float.Parse(form.Question17) + Reverse(float.Parse(form.Question29))) / 5) * 5;
+
+            float communication = ((float.Parse(form.Question6) + float.Parse(form.Question12) + float.Parse(form.Question13) + float.Parse(form.Question15) + float.Parse(form.Question27) + float.Parse(form.Question30) + Reverse(float.Parse(form.Question31))) / 7) * 5;
+            
+            float context = ((float.Parse(form.Question5) + float.Parse(form.Question7) + Reverse(float.Parse(form.Question10)) + float.Parse(form.Question11) + Reverse(float.Parse(form.Question14)) + Reverse(float.Parse(form.Question16)) + float.Parse(form.Question19) + float.Parse(form.Question28) + float.Parse(form.Question32) + float.Parse(form.Question33)) / 7) * 5;
+
+            float decision = ((float.Parse(form.Question2) + Reverse(float.Parse(form.Question8)) + float.Parse(form.Question23) + Reverse(float.Parse(form.Question25)) + float.Parse(form.Question26)) / 5) * 5;
+
+            _participantsService.AddQuestionnaire(_participantsAuthenticationService.GetHashedString(form.Token), int.Parse(number), recognition, identification, communication, context, decision);
+            
+            return Ok("Thank you for filling out the questionnaire.");
+        }
+
+        int Reverse(float number) 
+        {
+            switch(number) 
+            {
+                case 0:
+                    return 4;
+                case 1:
+                    return 3;
+                case 2:
+                    return 2;
+                case 3:
+                    return 1;
+                case 4:
+                    return 0;
+                default:
+                    return -1;
+            }
+
+        }
     }
     
     public class EmotionQuestionnaireForm
     {
         public string Token {get; set;}
-        public string RedirectUri {get; set;}
         public string Question1 {get; set;}
         public string Question2 {get; set;}
         public string Question3 {get; set;}

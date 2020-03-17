@@ -103,7 +103,7 @@ namespace IsThisAMood.Controllers
                 Type = "bearer"
             };
 
-            return Ok(token);
+            return Ok("Your account has been created.");
         }
 
         [HttpPost]

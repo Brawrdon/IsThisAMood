@@ -4,12 +4,12 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
 
-    var url = "/projects/IsThisAMood/api/questionnaire/" + ViewData["number"];
+    var url = "/projects/IsThisAMood/api/questionnaire?number=" + ViewData["number"];
+    var token = ViewData["token"];
 }
 
 <form action="@url" method="post">
-    <input type="hidden" asp-for="Token"/>
-    <input type="hidden" asp-for="RedirectUri"/>
+    <input type="hidden" asp-for="Token" value=@token/>
     <div class="ui form">        
         @{
             string[] questions = 
@@ -94,7 +94,7 @@
                     <div class="inline fields">
                         <div class="field">
                             <div class="ui radio checkbox">
-                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="0">
+                                <input required id=@aspFor[count] type="radio" name=@aspFor[count] value="0">
                                 <label>Never</label>
                             </div>
                         </div>

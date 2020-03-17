@@ -21,6 +21,7 @@ namespace IsThisAMood.Services
         Entry GetEntry(string accessToken, string pin, string name);
         bool DeleteEntry(string accessToken, string name);
         bool CheckPin(string accessToken, string pin);
+        void AddQuestionnaire(string accessToken, int number, float recognition, float identification, float communication, float context, float decision);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -225,6 +226,44 @@ namespace IsThisAMood.Services
             };
 
             _participants.InsertOne(participant);
+        }
+
+        public void AddQuestionnaire(string accessToken, int number, float recognition, float identification, float communication, float context, float decision)
+        {
+
+            _logger.LogDebug(accessToken);
+            var builder = Builders<Participant>.Update;
+            var update = builder
+                .Set(participant => participant.Recognition, recognition)
+                .Set(participant => participant.Identification, identification)
+                .Set(participant => participant.Communication, communication)
+                .Set(participant => participant.Contextualisation, context)
+                .Set(participant => participant.Decision, decision);
+
+            if(number == 2) 
+            {
+                update = builder
+                .Set(participant => participant.RecognitionTwo, recognition)
+                .Set(participant => participant.IdentificationTwo, identification)
+                .Set(participant => participant.CommunicationTwo, communication)
+                .Set(participant => participant.ContextualisationTwo, context)
+                .Set(participant => participant.DecisionTwo, decision);
+            }
+            
+            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
+            
+            if (!updateResult.IsAcknowledged)
+            {
+                _logger.LogError("Attempting to update participant questionnaire not acknowledged");
+            }
+
+            if (updateResult.ModifiedCount != 1)
+            {
+                _logger.LogError(
+                    "Modified count when attempting to update questionnaire was {ModifiedCount}", updateResult.ModifiedCount);
+            }
+
+            _logger.LogDebug("Participant questionnaire was updated");
         }
        
     }
