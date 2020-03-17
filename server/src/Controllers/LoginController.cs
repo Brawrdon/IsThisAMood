@@ -75,9 +75,20 @@ namespace IsThisAMood.Controllers
             return Redirect(loginForm.RedirectUri + "?state=" + loginForm.State + "&code=" + code);
         }
 
+
+
+        [HttpGet]
+        [Route("/signup")]
+        public IActionResult SignUpPage()
+        {
+            return View("SignUpForm");
+        }
+
+
+
         [HttpPost]
         [Route("/signup")]
-        public IActionResult SignUp([FromBody] AccountRequest account) 
+        public IActionResult SignUp([FromForm] AccountRequest account) 
         {
             var pin = _participantsAuthenticationService.GetHashedString(account.Pin);
             var email = _participantsAuthenticationService.GetHashedString(account.Email);
@@ -92,7 +103,7 @@ namespace IsThisAMood.Controllers
                 Type = "bearer"
             };
 
-            return Ok(accesToken);
+            return Ok(token);
         }
 
         [HttpPost]

@@ -14,5 +14,16 @@ namespace IsThisAMood.Models.Database
         public List<Entry> Entries { get; set; }
         public string AccessToken { get; set; }
         public string AlexaAccessToken {get; set;}
+        public int Communication {get; set;}
+        public int Contextualisation {get; set;}
+        public int Decision {get; set;}
+        public int Identification {get; set;}
+        public int Recognition {get; set;}
+
+        public int CommunicationTwo {get; set;}
+        public int ContextualisationTwo {get; set;}
+        public int DecisionTwo {get; set;}
+        public int IdentificationTwo {get; set;}
+        public int RecognitionTwo {get; set;}
     }
 }

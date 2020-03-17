@@ -1,0 +1,22 @@
+@model IsThisAMood.Models.Requests.AccountRequest
+@addTagHelper "*, Microsoft.AspNetCore.Mvc.TagHelpers"
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<form action="/projects/IsThisAMood/api/signup" method="post">
+  
+   <div class="ui form">        
+        <div class="field">
+            <label>Email</label>
+            <input type="text" asp-for="Email" placeholder="Email">
+        </div>
+        <div class="field">
+            <label>Pin</label>
+            <input type="password" maxlength="4" asp-for="Pin">
+        </div>
+    <button type="submit" class="ui button">Signup</button>
+  </div>
+  
+</form>

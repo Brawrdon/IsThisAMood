@@ -212,6 +212,16 @@ namespace IsThisAMood.Services
                 Entries = new List<Entry>(),
                 AccessToken = "",
                 AlexaAccessToken = "",
+                Communication = 0,
+                Contextualisation = 0,
+                Identification = 0,
+                Decision = 0,
+                Recognition = 0,
+                CommunicationTwo = 0,
+                ContextualisationTwo = 0,
+                IdentificationTwo = 0,
+                DecisionTwo = 0,
+                RecognitionTwo = 0
             };
 
             _participants.InsertOne(participant);

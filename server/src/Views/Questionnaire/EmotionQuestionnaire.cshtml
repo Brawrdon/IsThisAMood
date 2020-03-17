@@ -1,0 +1,135 @@
+@model IsThisAMood.Controllers.EmotionQuestionnaireForm
+@addTagHelper "*, Microsoft.AspNetCore.Mvc.TagHelpers"
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var url = "/projects/IsThisAMood/api/questionnaire/" + ViewData["number"];
+}
+
+<form action="@url" method="post">
+    <input type="hidden" asp-for="Token"/>
+    <input type="hidden" asp-for="RedirectUri"/>
+    <div class="ui form">        
+        @{
+            string[] questions = 
+            {
+                "My moods are hard to describe",
+                "I examined my feelings and then decided what to do",
+                "It’s important to me to understand what my feelings mean",
+                "It's hard for me to tell what mood I’m in",
+                "I analyse my personality to try to understand why I’m upset",
+                "Expressing emotion is easy",
+                "I usually know why I feel the way I do",
+                "I often have trouble deciding what will improve my mood",
+                "I know how I feel about most things",
+                "I don't know why I feel the way I feel",
+                "I go away by myself and think about why I feel a certain way",
+                "I like to write down what I’m feeling and analyze it",
+                "I can talk about mood to others",
+                "I don't really think about why I behave as I do",
+                "I often 'self-talk' to think about feelings",
+                "I’m often confused about how I feel about things",
+                "I’m often aware of being emotional, but I can’t describe the emotion",
+                "I frequently take time to reflect on how I feel",
+                "I often know what caused my mood",
+                "I’m usually aware of my emotions",
+                "I like to go someplace alone to think about my feelings",
+                "I don't often think about my feelings",
+                "I often think about ways to make myself feel better",
+                "I know exactly how I'm feeling",
+                "Sometimes I can't figure out how to make myself feel better",
+                "When feeling bad, I try to deal with my problems and concerns",
+                "I can verbalise my feelings",
+                "I usually have clear idea about how my feelings affects my behaviour",
+                "It’s difficult to make sense of the way I feel about things",
+                "I find it easy to write down how I feel",
+                "It's difficult to communicate what I feel",
+                "I often think about the way I feel about things",
+                "I analyse recent events to try to understand why I’m upset"
+            };
+            string[] aspFor = 
+            {
+                "Question1",
+                "Question2",
+                "Question3",
+                "Question4",
+                "Question5",
+                "Question6",
+                "Question7",
+                "Question8",
+                "Question9",
+                "Question10",
+                "Question11",
+                "Question12",
+                "Question13",
+                "Question14",
+                "Question15",
+                "Question16",
+                "Question17",
+                "Question18",
+                "Question19",
+                "Question20",
+                "Question21",
+                "Question22",
+                "Question23",
+                "Question24",
+                "Question25",
+                "Question26",
+                "Question27",
+                "Question28",
+                "Question29",
+                "Question30",
+                "Question31",
+                "Question32",
+                "Question33",
+            };
+
+            int count = 0;
+        
+            foreach(var question in questions) 
+            {
+                <div class="grouped fields" style="margin:2em 0;">
+                    <label>@question</label>
+                    <div class="inline fields">
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="0">
+                                <label>Never</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="1">
+                                <label>Very little</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="2">
+                                <label>Sometimes</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="3">
+                                <label>Often</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[count] type="radio" name=@aspFor[count] value="4">
+                                <label>A lot</label>
+                            </div>
+                        </div>
+                    </div>
+                </div> 
+                <div class="ui divider" style="border-top: 3px solid rgba(34,36,38,.15)"></div>
+                count++;
+            }
+
+        }
+        <button type="submit" class="ui button">submit</button>
+    </div>
+  
+</form>
