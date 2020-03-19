@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Alexa.NET;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
@@ -126,6 +128,8 @@ namespace IsThisAMood.Controllers
                         return ViewEntry();
                     case "DeleteEntry": 
                         return DeleteEntry();
+                    case "CanUse":
+                        return CanUse();
                     case "AMAZON.YesIntent":
                         return YesIntent();
                     case "AMAZON.NoIntent":
@@ -241,6 +245,36 @@ namespace IsThisAMood.Controllers
             return UnknownRequest();
            
         }
+
+        private IActionResult CanUse() 
+        {
+            _logger.LogInformation("{Intent} completed: {IntentCompleted}", "CanUse", true);
+
+            using(var reader = new StreamReader("moods.csv"))
+            {
+                var text = reader.ReadToEnd();
+                text = Regex.Replace(text, @"\s+", string.Empty);
+                text = text.ToLower();
+                var values = text.Split(',');
+
+                if(values.Contains(_intentRequest.Intent.Slots["item"].Value.ToLower())) 
+                    return Ok(BuildAskResponse("Yes, that is an available mood. " + _configuration["Responses:Prompt"]));
+
+            }
+
+            using(var reader = new StreamReader("activities.csv"))
+            {
+                var text = reader.ReadToEnd();
+                var textTrim = Regex.Replace(text, @"\s+", string.Empty);
+                var values = textTrim.Split(',');
+
+                  if(values.Contains(_intentRequest.Intent.Slots["item"].Value.ToLower())) 
+                    return Ok(BuildAskResponse("Yes, that is an available activity. " + _configuration["Responses:Prompt"]));
+            }
+
+            return Ok(BuildAskResponse("That isn't available to use. " + _configuration["Responses:Prompt"]));
+        }
+
         private IActionResult DeleteEntry()
         {
             _skillRequest.Session.Attributes["lastIntent"] = "DeleteEntry";
