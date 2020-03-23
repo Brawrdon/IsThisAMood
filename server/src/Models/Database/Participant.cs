@@ -14,16 +14,20 @@ namespace IsThisAMood.Models.Database
         public List<Entry> Entries { get; set; }
         public string AccessToken { get; set; }
         public string AlexaAccessToken {get; set;}
+
+        public EmotionalAwareness PreTest {get; set;}
+                
+        public EmotionalAwareness PostTest {get; set;}
+
+ 
+    }
+
+    public class EmotionalAwareness
+    {
         public float Communication {get; set;}
         public float Contextualisation {get; set;}
         public float Decision {get; set;}
         public float Identification {get; set;}
         public float Recognition {get; set;}
-
-        public float CommunicationTwo {get; set;}
-        public float ContextualisationTwo {get; set;}
-        public float DecisionTwo {get; set;}
-        public float IdentificationTwo {get; set;}
-        public float RecognitionTwo {get; set;}
     }
 }

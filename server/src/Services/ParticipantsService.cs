@@ -21,7 +21,7 @@ namespace IsThisAMood.Services
         Entry GetEntry(string accessToken, string pin, string name);
         bool DeleteEntry(string accessToken, string name);
         bool CheckPin(string accessToken, string pin);
-        void AddQuestionnaire(string accessToken, int number, float recognition, float identification, float communication, float context, float decision);
+        void AddEmontionalAwareness(string accessToken, int number, float recognition, float identification, float communication, float context, float decision);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -213,41 +213,45 @@ namespace IsThisAMood.Services
                 Entries = new List<Entry>(),
                 AccessToken = "",
                 AlexaAccessToken = "",
-                Communication = 0,
-                Contextualisation = 0,
-                Identification = 0,
-                Decision = 0,
-                Recognition = 0,
-                CommunicationTwo = 0,
-                ContextualisationTwo = 0,
-                IdentificationTwo = 0,
-                DecisionTwo = 0,
-                RecognitionTwo = 0
+                PreTest = new EmotionalAwareness {
+                    Communication = 0,
+                    Contextualisation = 0,
+                    Identification = 0,
+                    Decision = 0,
+                    Recognition = 0
+                },
+                PostTest = new EmotionalAwareness {
+                    Communication = 0,
+                    Contextualisation = 0,
+                    Identification = 0,
+                    Decision = 0,
+                    Recognition = 0
+                }
             };
 
             _participants.InsertOne(participant);
         }
 
-        public void AddQuestionnaire(string accessToken, int number, float recognition, float identification, float communication, float context, float decision)
+        public void AddEmontionalAwareness(string accessToken, int number, float recognition, float identification, float communication, float context, float decision)
         {
 
             _logger.LogDebug(accessToken);
             var builder = Builders<Participant>.Update;
             var update = builder
-                .Set(participant => participant.Recognition, recognition)
-                .Set(participant => participant.Identification, identification)
-                .Set(participant => participant.Communication, communication)
-                .Set(participant => participant.Contextualisation, context)
-                .Set(participant => participant.Decision, decision);
+                .Set(participant => participant.PreTest.Recognition, recognition)
+                .Set(participant => participant.PreTest.Identification, identification)
+                .Set(participant => participant.PreTest.Communication, communication)
+                .Set(participant => participant.PreTest.Contextualisation, context)
+                .Set(participant => participant.PreTest.Decision, decision);
 
             if(number == 2) 
             {
                 update = builder
-                .Set(participant => participant.RecognitionTwo, recognition)
-                .Set(participant => participant.IdentificationTwo, identification)
-                .Set(participant => participant.CommunicationTwo, communication)
-                .Set(participant => participant.ContextualisationTwo, context)
-                .Set(participant => participant.DecisionTwo, decision);
+                .Set(participant => participant.PostTest.Recognition, recognition)
+                .Set(participant => participant.PostTest.Identification, identification)
+                .Set(participant => participant.PostTest.Communication, communication)
+                .Set(participant => participant.PostTest.Contextualisation, context)
+                .Set(participant => participant.PostTest.Decision, decision);
             }
             
             var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);

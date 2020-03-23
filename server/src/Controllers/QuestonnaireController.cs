@@ -55,7 +55,7 @@ namespace IsThisAMood.Controllers
 
             float decision = ((float.Parse(form.Question2) + Reverse(float.Parse(form.Question8)) + float.Parse(form.Question23) + Reverse(float.Parse(form.Question25)) + float.Parse(form.Question26)) / 5) * 5;
 
-            _participantsService.AddQuestionnaire(_participantsAuthenticationService.GetHashedString(form.Token), int.Parse(number), recognition, identification, communication, context, decision);
+            _participantsService.AddEmontionalAwareness(_participantsAuthenticationService.GetHashedString(form.Token), int.Parse(number), recognition, identification, communication, context, decision);
             
             return Ok("Thank you for filling out the questionnaire.");
         }
