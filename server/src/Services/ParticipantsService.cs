@@ -293,7 +293,8 @@ namespace IsThisAMood.Services
         public void AddFeedback(string accessToken, Questionnaire questionnaire)
         {
             var builder = Builders<Participant>.Update;
-            var update = builder.Set(participant => participant.Questionnaire, questionnaire);
+            var update = builder.Set(participant => participant.Questionnaire, questionnaire)
+                        .Set(participant => participant.AccessToken, "");
 
             var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
             
