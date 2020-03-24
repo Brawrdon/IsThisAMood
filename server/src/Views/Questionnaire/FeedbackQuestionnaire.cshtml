@@ -1,0 +1,89 @@
+@model IsThisAMood.Controllers.FeedbackQuestionnaireForm
+@addTagHelper "*, Microsoft.AspNetCore.Mvc.TagHelpers"
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var token = ViewData["token"];
+}
+
+<form id="feedback" action="/projects/IsThisAMood/api/questionnaire/feedback" method="post">
+    <input type="hidden" asp-for="Token" value=@token/>
+    <div class="ui form">  
+        @functions {
+            string[] aspFor = 
+            {
+                "One",
+                "Two",
+                "Three",
+                "Four",
+                "Five",
+                "Six",
+                "Seven",
+                "Eight",
+                "Nine",
+                "Ten",
+                "Eleven",
+                "Twelve",
+                "Thirteen",
+                "Fourteen",
+                "Fifteen",
+            };
+
+            private void TrueFalse(string question, int number)
+            {
+                 <div class="grouped fields" style="margin:2em 0;">
+                    <label>@question</label>
+                    <div class="inline fields">
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input required id=@aspFor[number] type="radio" name=@aspFor[number] value="1">
+                                <label>Yes</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui radio checkbox">
+                                <input id=@aspFor[number] type="radio" name=@aspFor[number] value="0">
+                                <label>No</label>
+                            </div>
+                        </div>
+                    </div>
+                </div> 
+                <div class="ui divider" style="border-top: 3px solid rgba(34,36,38,.15)"></div>
+            }
+
+            private void TextArea(string question, int number)
+            {
+                 <div class="grouped fields" style="margin:2em 0;">
+                    <label>@question</label>
+                    <div class="inline fields">
+                        <div class="field">
+                            <textarea required cols="100" id=@aspFor[number] name=@aspFor[number]></textarea>
+                        </div>
+                    </div>
+                </div> 
+                <div class="ui divider" style="border-top: 3px solid rgba(34,36,38,.15)"></div>
+            }
+        }
+
+        @{
+            TrueFalse("Have you use mood journals before taking on the study?", 0);
+            TrueFalse("Did you have experience with Alexa or other voice assistants / chatbots before taking on the study?", 1);
+            TrueFalse("In general, did you have trouble using the journal?", 2);
+            TextArea("Which of the available features, if any, did you find easy to use? Please provide examples of why it was easy.", 3);
+            TextArea("Which of the available features, if any, did you find difficult to use? Please provide examples of why it was difficult.", 4);
+            TrueFalse("Did you feel comfortable using the journal?", 5);
+            TrueFalse("Did you feel comfortable with Alexa’s responses?", 6);
+            TextArea("What would you change about Alexa’s responses? Be as detailed as possible, using examples if you can.", 7);
+            TrueFalse("Did you limit your interactions with Alexa to specific locations?", 8);
+            TextArea("Why did you / didn’t you limit your interaction to specific locations? Be as detailed as possible, using examples if you can.", 9);
+            TrueFalse("Do you feel you have a decent understand of your mood from the week?", 10);
+            TextArea("Did privacy or security concerns impact your usage of the journal? Please explain why, using examples if you can.", 11);
+            TrueFalse("Would you continue to use this type of journal in the real world?", 12);
+            TextArea("Is there anything you would change about the way in which you used the journal? This can include things such as how you spoke to Alexa, her responses or features.", 13);
+            TextArea("Please provide any other feedback that wasn’t mentioned. Be as detailed as possible, using examples if you can.", 14);
+        }
+        <button type="submit" class="ui button">submit</button>
+    </div>
+  
+</form>

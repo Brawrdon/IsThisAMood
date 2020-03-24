@@ -18,8 +18,27 @@ namespace IsThisAMood.Models.Database
         public EmotionalAwareness PreTest {get; set;}
                 
         public EmotionalAwareness PostTest {get; set;}
+        public Questionnaire Questionnaire {get; set;}
 
- 
+    }
+
+    public class Questionnaire
+    {
+        public bool One {get; set;}
+        public bool Two {get; set;}
+        public bool Three {get; set;}
+        public string Four {get; set;}
+        public string Five {get; set;}
+        public bool Six {get; set;}
+        public bool Seven {get; set;}
+        public string Eight {get; set;}
+        public bool Nine {get; set;}
+        public string Ten {get; set;}
+        public bool Eleven {get; set;}
+        public string Twelve {get; set;}
+        public bool Thirteen {get; set;}
+        public string Fourteen {get; set;}
+        public string Fifteen {get; set;}
     }
 
     public class EmotionalAwareness

@@ -3,6 +3,7 @@ using IsThisAMood.Models.Requests;
 using IsThisAMood.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using IsThisAMood.Models.Database;
 
 namespace IsThisAMood.Controllers
 {
@@ -23,7 +24,7 @@ namespace IsThisAMood.Controllers
 
         [HttpGet]
         [Route("[controller]")]
-        public IActionResult Questionnaire([FromQuery] string code, [FromQuery] string state)
+        public IActionResult EmotionsQuestionnaire([FromQuery] string code, [FromQuery] string state)
         {
             var token = _participantsAuthenticationService.CreateAccessToken(code);
 
@@ -40,9 +41,25 @@ namespace IsThisAMood.Controllers
             });
         }
 
+        [HttpGet]
+        [Route("[controller]/feedback")]
+        public IActionResult FeedbackQuestionnaire([FromQuery] string token)
+        {
+            var paticipant = _participantsService.GetParticipantFromToken(_participantsAuthenticationService.GetHashedString(token));
+            if (paticipant == null)
+                return NotFound();
+
+            ViewData["token"] = token;
+
+            return View("FeedbackQuestionnaire", new FeedbackQuestionnaireForm
+            {
+                Token = token
+            });
+        }
+
         [HttpPost]
         [Route("[controller]")]
-        public IActionResult SumbitQuestionnaire([FromForm] EmotionQuestionnaireForm form, [FromQuery] string number)
+        public IActionResult SumbitEmotionsQuestionnaire([FromForm] EmotionQuestionnaireForm form, [FromQuery] string number)
         {
 
             float recognition = ((Reverse(float.Parse(form.Question4)) + float.Parse(form.Question18) + float.Parse(form.Question20) + float.Parse(form.Question21) + Reverse(float.Parse(form.Question22)) + float.Parse(form.Question24)) / 6) * 5;
@@ -57,7 +74,40 @@ namespace IsThisAMood.Controllers
 
             _participantsService.AddEmontionalAwareness(_participantsAuthenticationService.GetHashedString(form.Token), int.Parse(number), recognition, identification, communication, context, decision);
             
-            return Ok("Thank you for filling out the questionnaire.");
+            if(number == "1") 
+               return Ok("Thank you for filling out the questionnaire. You can now use the skill via the Alexa app or your smart speaker");
+            
+            else 
+                return Redirect("/projects/IsThisAMood/api/questionnaire/feedback?token=" + form.Token);
+            
+        }
+
+        [HttpPost]
+        [Route("[controller]/feedback")]
+        public IActionResult SumbitFeedbackQuestionnaire([FromForm] FeedbackQuestionnaireForm form)
+        {
+            var questionnaire = new Questionnaire 
+            {
+                One = form.One == "1",
+                Two = form.Two == "1",
+                Three = form.Three == "1",
+                Four = form.Four,
+                Five = form.Five,
+                Six = form.Six == "1",
+                Seven = form.Seven == "1",
+                Eight = form.Eight,
+                Nine = form.Nine == "1",
+                Ten = form.Ten,
+                Eleven = form.Eleven == "1",
+                Twelve = form.Twelve,
+                Thirteen = form.Thirteen == "1",
+                Fourteen = form.Fourteen,
+                Fifteen = form.Fifteen
+            };
+
+            _participantsService.AddFeedback(_participantsAuthenticationService.GetHashedString(form.Token), questionnaire);
+                
+            return Ok("Thank you so much for completing the study. You will no longer be able to access the Alexa skill and you will now be entered into the prize draw! See you soon.");
         }
 
         int Reverse(float number) 
@@ -117,7 +167,25 @@ namespace IsThisAMood.Controllers
         public string Question31 {get; set;}
         public string Question32 {get; set;}
         public string Question33 {get; set;}
+    }
 
-        
+    public class FeedbackQuestionnaireForm
+    {
+        public string Token {get; set;}
+        public string One {get; set;}
+        public string Two {get; set;}
+        public string Three {get; set;}
+        public string Four {get; set;}
+        public string Five {get; set;}
+        public string Six {get; set;}
+        public string Seven {get; set;}
+        public string Eight {get; set;}
+        public string Nine {get; set;}
+        public string Ten {get; set;}
+        public string Eleven {get; set;}
+        public string Twelve {get; set;}
+        public string Thirteen {get; set;}
+        public string Fourteen {get; set;}
+        public string Fifteen {get; set;}
     }
 }

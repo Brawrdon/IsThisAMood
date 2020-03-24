@@ -22,6 +22,7 @@ namespace IsThisAMood.Services
         bool DeleteEntry(string accessToken, string name);
         bool CheckPin(string accessToken, string pin);
         void AddEmontionalAwareness(string accessToken, int number, float recognition, float identification, float communication, float context, float decision);
+        void AddFeedback(string accessToken, Questionnaire questionnaire);
     }
 
     public class ParticipantsService : IParticipantsService
@@ -213,19 +214,39 @@ namespace IsThisAMood.Services
                 Entries = new List<Entry>(),
                 AccessToken = "",
                 AlexaAccessToken = "",
-                PreTest = new EmotionalAwareness {
+                PreTest = new EmotionalAwareness 
+                {
                     Communication = 0,
                     Contextualisation = 0,
                     Identification = 0,
                     Decision = 0,
                     Recognition = 0
                 },
-                PostTest = new EmotionalAwareness {
+                PostTest = new EmotionalAwareness 
+                {
                     Communication = 0,
                     Contextualisation = 0,
                     Identification = 0,
                     Decision = 0,
                     Recognition = 0
+                },
+                Questionnaire = new Questionnaire 
+                {
+                    One = false,
+                    Two = false,
+                    Three = false,
+                    Four = "",
+                    Five = "",
+                    Six = false,
+                    Seven = false,
+                    Eight = "",
+                    Nine = false,
+                    Ten = "",
+                    Eleven = false,
+                    Twelve = "",
+                    Thirteen = false,
+                    Fourteen = "",
+                    Fifteen = ""
                 }
             };
 
@@ -235,7 +256,6 @@ namespace IsThisAMood.Services
         public void AddEmontionalAwareness(string accessToken, int number, float recognition, float identification, float communication, float context, float decision)
         {
 
-            _logger.LogDebug(accessToken);
             var builder = Builders<Participant>.Update;
             var update = builder
                 .Set(participant => participant.PreTest.Recognition, recognition)
@@ -258,17 +278,38 @@ namespace IsThisAMood.Services
             
             if (!updateResult.IsAcknowledged)
             {
-                _logger.LogError("Attempting to update participant questionnaire not acknowledged");
+                _logger.LogError("Attempting to update participant emotions not acknowledged");
             }
 
             if (updateResult.ModifiedCount != 1)
             {
                 _logger.LogError(
-                    "Modified count when attempting to update questionnaire was {ModifiedCount}", updateResult.ModifiedCount);
+                    "Modified count when attempting to update emotions was {ModifiedCount}", updateResult.ModifiedCount);
             }
 
-            _logger.LogDebug("Participant questionnaire was updated");
+            _logger.LogDebug("Participant emotions was updated");
         }
-       
+
+        public void AddFeedback(string accessToken, Questionnaire questionnaire)
+        {
+            var builder = Builders<Participant>.Update;
+            var update = builder.Set(participant => participant.Questionnaire, questionnaire);
+
+            var updateResult = _participants.UpdateOne(participant => participant.AccessToken == accessToken, update);
+            
+            if (!updateResult.IsAcknowledged)
+            {
+                _logger.LogError("Attempting to update feedback questionnaire not acknowledged");
+            }
+
+            if (updateResult.ModifiedCount != 1)
+            {
+                _logger.LogError(
+                    "Modified count when attempting to update feedback was {ModifiedCount}", updateResult.ModifiedCount);
+            }
+
+            _logger.LogDebug("Participant feedback was updated");
+
+        }
     }
 }
